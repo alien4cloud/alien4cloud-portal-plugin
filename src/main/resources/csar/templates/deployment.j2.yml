@@ -1,0 +1,76 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rp-{{ uc_id }}
+  namespace: "{{ zoneNamespace }}"
+
+spec:
+  replicas: {{ replicaCount }}
+  template:
+    metadata:
+      labels:
+        app: rp-{{ uc_id }}
+    spec:
+      # Add Security Context for running container with artemis user instead of root user.
+      # The artemis user (uid 500) is defined into the image.
+      securityContext:
+        runAsUser: 500
+        runAsGroup: 500
+        fsGroup: 500
+{% if replicaCount > 1 %}
+# Add antiaffinity to avoid execution on the same compute.
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: app
+                    operator: In
+                    values:
+                      - rp-{{ uc_id }}
+              topologyKey: failure-domain.beta.kubernetes.io/zone
+{% endif %}
+      containers:
+        - name: rp-{{ uc_id }}
+          image: {{ imageUrl }}
+          imagePullPolicy: Always
+          # Resource limitation
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "0.1"
+            limits:
+              memory: "512Mi"
+              cpu: "0.5"
+          # Probes
+          readinessProbe:
+            httpGet:
+              scheme: HTTP
+                path: /nginx-health
+                port: 8000
+            initialDelaySeconds: 20
+            periodSeconds: 60
+          ports:
+            - containerPort: 8001
+          volumeMounts:
+            - name: nginx
+              mountPath: /usr/local/openresty/nginx/conf/nginx.conf
+              subPath: nginx.conf
+            - name: settings
+              mountPath: /usr/local/openresty/nginx/conf/env/
+            - name: site
+              mountPath: /usr/local/openresty/nginx/conf/sites-enabled/{{ uc_id }}/
+      #imagePullSecrets:
+      #- name: nexus-registry
+      # Load the configuration files OpenResty
+      volumes:
+        - name: nginx
+          configMap:
+            name: rp-{{ uc_id }}-nginx-cm
+        - name: settings
+          configMap:
+            name: rp-{{ uc_id }}-settings-cm
+        - name: site
+          configMap:
+            name: rp-{{ uc_id }}-site-cm

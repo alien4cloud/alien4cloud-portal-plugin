@@ -1,0 +1,14 @@
+id: alien4cloud-portal-plugin
+name: portal plugin
+version: ${project.version}
+description: >
+  This plugin reconciles A4C and Portal
+configuration_class: org.alien4cloud.plugin.portal.PluginConfiguration
+dependencies:
+  - alien4cloud-kubernetes-plugin
+component_descriptors:
+  - bean_name: portal-publisher
+    name: Portal Publisher
+    description: >
+      Modifier that adds a consul publisher and a reverse proxy configurator
+      Insert this modifier to post-matched-node-setup phase.

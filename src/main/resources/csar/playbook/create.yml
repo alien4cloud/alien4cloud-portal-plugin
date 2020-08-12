@@ -1,0 +1,79 @@
+- name: Create resources for reverse proxy stuffs
+  hosts: all
+  strategy: linear
+  become: false
+
+  tasks:
+
+    - name: Create temporary folder
+      tempfile:
+        state: directory
+        prefix: rptests
+      register: temp_dir
+
+    - name: Create Kubeconfig temporary file
+      tempfile:
+        state: file
+        prefix: rptests
+      register: kubeconfig_file
+
+    - name: Copy KubeConfig in a temporary file
+      copy:
+        content: "{{ kubeConfig }}"
+        dest: "{{ kubeconfig_file.path }}"
+
+    - debug:
+        var: temp_dir
+
+    - name: Find templates
+      find:
+        paths: "{{ templates }}"
+        patterns: "*.j2.*"
+      register: templates_find_result
+
+#    - debug:
+#        var: templates_find_result
+
+    - name: Render templates
+      template:
+        src: "{{ item.path }}"
+        dest: "{{ temp_dir.path }}/{{ item.path | basename }}"
+        force: yes
+      with_items: "{{ templates_find_result.files }}"
+
+    - name: Create nginx configMap
+      shell: "kubectl --kubeconfig {{ kubeconfig_file.path }} -n {{ zoneNamespace }} create configmap rp-{{ uc_id }}-nginx-cm --from-file={{ temp_dir.path }}/nginx.j2.conf"
+
+    - name: Create settings configMap
+      shell: "kubectl --kubeconfig {{ kubeconfig_file.path }} -n {{ zoneNamespace }} create configmap rp-{{ uc_id }}-settings-cm --from-file={{ temp_dir.path }}/settings.j2.conf"
+
+    - name: Create site configMap
+      shell: "kubectl --kubeconfig {{ kubeconfig_file.path }} -n {{ zoneNamespace }} create configmap rp-{{ uc_id }}-site-cm --from-file={{ temp_dir.path }}/site.j2.conf"
+
+    - name: Create RP Deployment
+      k8s:
+        state: present
+        src: "{{ temp_dir.path }}/deployment.j2.yml"
+        kubeconfig: "{{ kubeconfig_file.path }}"
+
+    - name: Create RP Service
+      k8s:
+        state: present
+        src: "{{ temp_dir.path }}/service.j2.yml"
+        kubeconfig: "{{ kubeconfig_file.path }}"
+
+    - name: Create RP Ingress
+      k8s:
+        state: present
+        src: "{{ temp_dir.path }}/ingress.j2.yml"
+        kubeconfig: "{{ kubeconfig_file.path }}"
+
+    - name: Finally remove temporary folder
+      file:
+        path: "{{ temp_dir.path }}"
+        state: absent
+
+    - name: Finally kubeconfig temporary file
+      file:
+        path: "{{ kubeconfig_file.path }}"
+        state: absent

@@ -1,0 +1,230 @@
+tosca_definitions_version: alien_dsl_2_0_0
+
+metadata:
+  template_name: org.alien4cloud.portalplugin
+  template_version: 3.0.0
+  template_author: alien4cloud
+
+description: |
+  Types for Portal plugin
+
+imports:
+  - tosca-normative-types:1.0.0-ALIEN20
+  - alien-base-types:3.0.0
+  - yorc-types:1.1.0
+  - org.alien4cloud.kubernetes.api:3.1.0
+
+node_types:
+
+  org.alien4cloud.portalplugin.types.KubeServiceProxied:
+    derived_from: org.alien4cloud.kubernetes.api.types.KubeService
+    capabilities:
+      service_endpoint:
+        type: org.alien4cloud.portalplugin.capabilities.KubeServiceProxiedEndpoint
+        properties:
+          proxy_for: expose
+
+  org.alien4cloud.portalplugin.types.ReverseProxyConfigurator:
+    derived_from: tosca.nodes.Root
+    description: |
+      A type that run a single shell command
+    properties:
+      kubeConfig:
+        type: string
+        description: |
+          PD (plateform dependant), kube config with admin rigths.
+      iamBaseUrl:
+        type: string
+        description: |
+          ZD (zone dependant), the base url of the IAM, for example https://iam.metier.artemis
+      smdUrl:
+        type: string
+        description: |
+          PD (plateform dependant), the base url of the SMD, for example https://smd.technique.artemis:8080
+      smdUser:
+        type: string
+        description: |
+          PD, Username to authenticate with SMD.
+      smdPassword:
+        type: string
+        description: |
+          PD, Password to authenticate with SMD.
+      portalClient:
+        type: string
+        description: |
+          ZD
+      portalSecret:
+        type: string
+        description: |
+          ZD
+      portalBaseUrl:
+        type: string
+        description: |
+          ZD, the base URL for the portail (ex. https://portail.metier.artemis).
+      replicaCount:
+        type: integer
+        description:
+          PD, number of replicas for the RP pod(s).
+      locationOptions:
+        type: string
+        description: |
+          UD, options to add to location config.
+      serviceUpstreamUrl:
+        type: string
+        description: |
+          UD (Usecase dependant), the internal URL to access the target service (ex. http://uc-ssa-kibana.cu-p-environment-ssa--ssaapp-metier.svc.cluster.local:5601/ssa-kibana/).
+      proxyBaseUrl:
+        type: string
+        description: |
+          ZD, the base URL of the proxy (ex. https://proxy.metier.artemis). Combined to the contextPath will give the full external URL to access the target.
+#      proxyBaseRedirectRegexp:
+#        type: string
+#        description: |
+#          ZD, expression used to detect proxy redirect (ex. ^https://[^.]+\.metier\.artemis(:[0-9]+)?/(.*)). Used in Nginx configuration proxy_redirect directive.
+      dnsResolver:
+        type: string
+        description: |
+          PD, the DNS resolver IP for Nginx configuration.
+      zoneNamespace:
+        type: string
+        description: |
+          ZD, the name space where the reverse proxy should be deployed (ex. pf-acc--portail-metier).
+      uc_id:
+        type: string
+        description: |
+          UD, the use case ID, should be unique (maybe use the module qualified name ?), and K8S naming policy compliant.
+      imageUrl:
+        type: string
+        description: |
+          PD, the full reverse proxy container image url (ex: hosted-registry.technique.artemis/artemis_plateforme_socle/socle/rp-artemis:v2.5.0_user500).
+      contextPath:
+        type: string
+        description: |
+          UD, the context path to access the target service (ex: /UL_Pilo0_IHM/).
+      proxyHost:
+        type: string
+        description: |
+          ZD, the external proxy host name (for example: proxy.cd.artemis).
+      ingressClass:
+        type: string
+        description: |
+          ZD, the value of the annotation kubernetes.io/ingress.class (for example: nginx-cd).
+    interfaces:
+      Standard:
+        create:
+          inputs:
+            kubeConfig: { get_property: [ SELF, kubeConfig ] }
+            iamBaseUrl: { get_property: [SELF, iamBaseUrl] }
+            smdUrl: { get_property: [SELF, smdUrl] }
+            smdUser: { get_property: [SELF, smdUser] }
+            smdPassword: { get_property: [SELF, smdPassword] }
+            portalClient: { get_property: [SELF, portalClient] }
+            portalSecret: { get_property: [SELF, portalSecret] }
+            portalBaseUrl: { get_property: [SELF, portalBaseUrl] }
+            replicaCount: { get_property: [SELF, replicaCount] }
+            locationOptions: { get_property: [SELF, locationOptions] }
+            serviceUpstreamUrl: { get_property: [SELF, serviceUpstreamUrl] }
+            proxyBaseUrl: { get_property: [SELF, proxyBaseUrl] }
+            dnsResolver: { get_property: [SELF, dnsResolver] }
+            zoneNamespace: { get_property: [SELF, zoneNamespace] }
+            uc_id: { get_property: [SELF, uc_id] }
+            imageUrl: { get_property: [SELF, imageUrl] }
+            contextPath: { get_property: [SELF, contextPath] }
+            proxyHost: { get_property: [SELF, proxyHost] }
+            ingressClass: { get_property: [SELF, ingressClass] }
+          implementation: playbook/create.yml
+        delete:
+          inputs:
+            kubeConfig: { get_property: [ SELF, kubeConfig ] }
+            zoneNamespace: { get_property: [SELF, zoneNamespace] }
+            uc_id: { get_property: [SELF, uc_id] }
+          implementation: playbook/delete.yml
+    artifacts:
+      - templates:
+          type: tosca.artifacts.File
+          file: templates
+
+  org.alien4cloud.portalplugin.types.ConsulRunner:
+    derived_from: tosca.nodes.Root
+    description: |
+      A type that publishes to consul
+    properties:
+      url:
+        type: string
+        description: |
+          consul url
+        required: true
+      name:
+        type: string
+        description: |
+          service name
+        required: true
+      data:
+        type: string
+        description: |
+          data to be written in consul
+        required: true
+      certificate:
+        type: string
+        description: |
+          client certificate file
+        required: false
+      key:
+        type: string
+        description: |
+          client private key file
+        required: false
+    interfaces:
+      Standard:
+        create:
+          inputs:
+            url: { get_property: [SELF,url] }
+            certificate: { get_property: [SELF,certificate] }
+            key: { get_property: [SELF,key] }
+            name: { get_property: [SELF,name] }
+            data: { get_property: [SELF,data] }
+          implementation: scripts/consul_add.sh
+        delete:
+          inputs:
+            url: { get_property: [SELF,url] }
+            certificate: { get_property: [SELF,certificate] }
+            key: { get_property: [SELF,key] }
+            name: { get_property: [SELF,name] }
+          implementation: scripts/consul_del.sh
+
+capability_types:
+  org.alien4cloud.portalplugin.capabilities.KubeServiceProxiedEndpoint:
+    derived_from: org.alien4cloud.kubernetes.api.capabilities.KubeServiceEndpoint
+    description: >
+      A proxied endpoint
+    properties:
+      description:
+        type: string
+        required: true
+        description: |
+          service long description
+      logo:
+        type: string
+        required: false
+        description: |
+          base64 encoded service icon
+      admin:
+        type: boolean
+        required: true
+        description: |
+          true in case of admin service
+      service_type:
+        type: string
+        required: true
+        description: |
+          service type (ihm or api)
+        constraints:
+          - valid_values: [ihm, api]
+        default: ihm
+      locationOptions:
+        type: string
+        required: false
+        description: |
+          options to add to location config
+
+

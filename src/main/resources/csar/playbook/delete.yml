@@ -1,0 +1,58 @@
+- name: Delete resources for reverse proxy stuffs
+  hosts: all
+  strategy: linear
+  become: false
+
+  tasks:
+
+    - name: Create Kubeconfig temporary file
+      tempfile:
+        state: file
+        prefix: rptests
+      register: kubeconfig_file
+
+    - name: Copy KubeConfig in a temporary file
+      copy:
+        content: "{{ kubeConfig }}"
+        dest: "{{ kubeconfig_file.path }}"
+
+    - name: Remove RM Ingress
+      k8s:
+        state: absent
+        api_version: networking.k8s.io/v1beta1
+        kind: Ingress
+        namespace: "{{ zoneNamespace }}"
+        name: "rp-{{ uc_id }}-ingress"
+        kubeconfig: "{{ kubeconfig_file.path }}"
+
+    - name: Remove RM Service
+      k8s:
+        state: absent
+        api_version: v1
+        kind: Service
+        namespace: "{{ zoneNamespace }}"
+        name: "rp-{{ uc_id }}-svc"
+        kubeconfig: "{{ kubeconfig_file.path }}"
+
+    - name: Remove RM Deployment
+      k8s:
+        state: absent
+        api_version: apps/v1
+        kind: Deployment
+        namespace: "{{ zoneNamespace }}"
+        name: "rp-{{ uc_id }}"
+        kubeconfig: "{{ kubeconfig_file.path }}"
+
+    - name: Delete nginx configMap
+      shell: "kubectl --kubeconfig {{ kubeconfig_file.path }} -n {{ zoneNamespace }} delete configmap rp-{{ uc_id }}-nginx-cm"
+
+    - name: Delete settings configMap
+      shell: "kubectl --kubeconfig {{ kubeconfig_file.path }} -n {{ zoneNamespace }} delete configmap rp-{{ uc_id }}-settings-cm"
+
+    - name: Delete site configMap
+      shell: "kubectl --kubeconfig {{ kubeconfig_file.path }} -n {{ zoneNamespace }} delete configmap rp-{{ uc_id }}-site-cm"
+
+    - name: Finally remove kubeconfig temporary file
+      file:
+        path: "{{ kubeconfig_file.path }}"
+        state: absent

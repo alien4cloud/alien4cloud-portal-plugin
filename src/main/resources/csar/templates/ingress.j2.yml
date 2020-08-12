@@ -1,0 +1,20 @@
+---
+apiVersion: networking.k8s.io/v1beta1
+kind: Ingress
+metadata:
+  name: rp-{{ uc_id }}-ingress
+  namespace: {{ zoneNamespace }}
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    kubernetes.io/ingress.class: {{ ingressClass }}
+spec:
+  tls:
+    - secretName: openresty-tls
+  rules:
+    - host: {{ proxyHost }}
+      http:
+        paths:
+          - path: {{ contextPath }}
+            backend:
+              serviceName: rp-{{ uc_id }}-svc
+              servicePort: 8001

@@ -1,0 +1,25 @@
+templates: /Users/xdegenne/work/src/alien4cloud-datagouv_mls-plugin/src/main/resources/csar/templates/
+
+kubeConfig: ""
+iamBaseUrl: "https://iam.metier.artemis"
+smdUrl: "https://smd.technique.artemis:8080"
+smdUser: "tec-smd-portail"
+smdPassword: "FkV4EPrnC7deseWGNWFSEUmE9sYnBzqDe1V"
+portalClient: "L_ACC_portal-metier"
+portalSecret: "140400e5-174b-4c42-8c7a-ccd5c6352cb7"
+portalBaseUrl: "https://portail.metier.artemis"
+replicaCount: 3
+#locationOptions: tutu
+# locationOptions can be a multiline variable
+#locationOptions: |
+#  toto
+#  titi
+serviceUpstreamUrl: "http://uc-ssa-kibana.cu-p-environment-ssa--ssaapp-metier.svc.cluster.local:5601/ssa-kibana/"
+proxyBaseUrl: ""
+dnsResolver: "10.233.0.3"
+zoneNamespace: "pf-acc--portail-metier"
+uc_id: "pilo0"
+imageUrl: "hosted-registry.technique.artemis/artemis_plateforme_socle/socle/rp-artemis:v2.5.0_user500"
+contextPath: "/UL_Pilo0_IHM/"
+proxyHost: "proxy.cd.artemis"
+ingressClass: "ingress-cd"
