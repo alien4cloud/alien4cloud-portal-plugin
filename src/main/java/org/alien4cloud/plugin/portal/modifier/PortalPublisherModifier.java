@@ -281,7 +281,10 @@ public class PortalPublisherModifier extends TopologyModifierSupport {
               setNodePropertyPathValue(null,topology,rpnode,"contextPath", new ScalarPropertyValue(url_path));
            }
            setNodePropertyPathValue(null,topology,rpnode,"serviceUpstreamUrl", new ScalarPropertyValue(upstreamUrl));
-           setNodePropertyPathValue(null,topology,rpnode,"uc_id", new ScalarPropertyValue(qualifiedName.toLowerCase().replaceAll("_","-")));
+           String uc_id = context.getEnvironmentContext().get().getApplication().getId() + "-" + 
+                          context.getEnvironmentContext().get().getEnvironment().getName() + "-" +
+                          module.getName();
+           setNodePropertyPathValue(null,topology,rpnode,"uc_id", new ScalarPropertyValue(uc_id.toLowerCase().replaceAll("_","-")));
            setNodePropertyPathValue(null,topology,rpnode,"kubeConfig", new ScalarPropertyValue(kubeConfig));
            if (!StringUtils.isBlank(locationOptions)) {
               setNodePropertyPathValue(null,topology,rpnode,"locationOptions", new ScalarPropertyValue(locationOptions));

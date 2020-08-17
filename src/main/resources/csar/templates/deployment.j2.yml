@@ -7,6 +7,9 @@ metadata:
 
 spec:
   replicas: {{ replicaCount }}
+  selector:
+    matchLabels:
+      app: rp-{{ uc_id }}
   template:
     metadata:
       labels:
@@ -47,8 +50,8 @@ spec:
           readinessProbe:
             httpGet:
               scheme: HTTP
-                path: /nginx-health
-                port: 8000
+              path: /nginx-health
+              port: 8000
             initialDelaySeconds: 20
             periodSeconds: 60
           ports:
