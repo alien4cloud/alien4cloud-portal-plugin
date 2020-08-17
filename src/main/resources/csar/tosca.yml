@@ -139,6 +139,8 @@ node_types:
             zoneNamespace: { get_property: [SELF, zoneNamespace] }
             uc_id: { get_property: [SELF, uc_id] }
           implementation: playbook/delete.yml
+    attributes:
+      proxy_url: { concat: [get_property: [SELF, proxyBaseUrl], get_property: [SELF, contextPath]] }
     artifacts:
       - templates:
           type: tosca.artifacts.File

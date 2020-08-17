@@ -45,6 +45,8 @@ import static org.alien4cloud.plugin.portal.csar.Version.PORTALPLUGIN_CSAR_VERSI
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -156,6 +158,12 @@ public class PortalPublisherModifier extends TopologyModifierSupport {
         Set<NodeTemplate> services = TopologyNavigationUtil.getNodesOfType(init_topology, PROXIED_SERVICE, true);
         Set<NodeTemplate> kubeSRnodes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_SERVICE_RESOURCE, true);
 
+        Map<String, Set<String>> topologyAttributes = topology.getOutputAttributes();
+        if (topologyAttributes == null) {
+            topologyAttributes = new HashMap<String, Set<String>>();
+            topology.setOutputAttributes(topologyAttributes);
+        }
+
         for (NodeTemplate node : services) {
            log.info("Processing node {}", node.getName());
 
@@ -200,7 +208,7 @@ public class PortalPublisherModifier extends TopologyModifierSupport {
            String description = PropertyUtil.getScalarValue(safe(endpoint.getProperties()).get("description"));
            String locationOptions = PropertyUtil.getScalarValue(safe(endpoint.getProperties()).get("locationOptions"));
 
-           String url = getParameter (zone, "proxyBaseUrl") + url_path;
+           String url = portalConfiguration.getParameter (zone, "proxyBaseUrl") + url_path;
 
            /* --- Consul --- */
 
@@ -273,7 +281,7 @@ public class PortalPublisherModifier extends TopologyModifierSupport {
 
            /* set PD & ZD properties */
            for (String param : parameters) {
-              setNodePropertyPathValue(null,topology,rpnode,param,new ScalarPropertyValue(getParameter(zone,param))); 
+              setNodePropertyPathValue(null,topology,rpnode,param,new ScalarPropertyValue(portalConfiguration.getParameter(zone,param))); 
            }
 
            /* set UD properties */ 
@@ -293,6 +301,16 @@ public class PortalPublisherModifier extends TopologyModifierSupport {
            /* add relationship on target node so as to be run after the node is deployed */
            addRelationshipTemplate (null, topology, rpnode, kubeDRnode.getName(), NormativeRelationshipConstants.DEPENDS_ON,
                      "dependency", "feature");
+
+           /* add url output attribute */
+           Set<String> nodeAttributes = topologyAttributes.get(rpnode.getName());
+           if (nodeAttributes == null) {
+               nodeAttributes = new HashSet<String>();
+               topologyAttributes.put(rpnode.getName(), nodeAttributes);
+           }
+           nodeAttributes.add("proxy_url");
+
+
         }
 
     }
@@ -308,24 +326,6 @@ public class PortalPublisherModifier extends TopologyModifierSupport {
             }
         }
         return PORTALPLUGIN_CSAR_VERSION;
-    }
-
-    /**
-     * look for a configuration parameter:
-     *   - as a ZD parameter
-     *   - if not set, as a PD parameter
-     **/
-    private String getParameter (String zone, String parameter) {
-       String result = safe(safe(portalConfiguration.getZones()).get(zone)).get(parameter);
-       log.debug ("Parameter {} ({}): {}", parameter, zone, result);
-       if (StringUtils.isBlank(result)) {
-          result = safe(portalConfiguration.getAll()).get(parameter);
-          log.debug ("Parameter {} (ALL): {}", parameter, result);
-       }
-       if (result == null) {
-          result = "";
-       }
-       return result;
     }
 
     @Getter
