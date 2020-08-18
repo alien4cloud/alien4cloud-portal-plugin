@@ -28,7 +28,7 @@
     - name: Find templates
       find:
         paths: "{{ templates }}"
-        patterns: "*.j2.*"
+        patterns: "*"
       register: templates_find_result
 
 #    - debug:
@@ -42,31 +42,40 @@
       with_items: "{{ templates_find_result.files }}"
 
     - name: Create nginx configMap
-      shell: "kubectl --kubeconfig {{ kubeconfig_file.path }} -n {{ zoneNamespace }} create configmap rp-{{ uc_id }}-nginx-cm --from-file={{ temp_dir.path }}/nginx.j2.conf"
+      shell: "kubectl --kubeconfig {{ kubeconfig_file.path }} -n {{ zoneNamespace }} create configmap rp-{{ uc_id }}-nginx-cm --from-file={{ temp_dir.path }}/nginx.conf"
 
     - name: Create settings configMap
-      shell: "kubectl --kubeconfig {{ kubeconfig_file.path }} -n {{ zoneNamespace }} create configmap rp-{{ uc_id }}-settings-cm --from-file={{ temp_dir.path }}/settings.j2.conf"
+      shell: "kubectl --kubeconfig {{ kubeconfig_file.path }} -n {{ zoneNamespace }} create configmap rp-{{ uc_id }}-settings-cm --from-file={{ temp_dir.path }}/settings.conf"
 
     - name: Create site configMap
-      shell: "kubectl --kubeconfig {{ kubeconfig_file.path }} -n {{ zoneNamespace }} create configmap rp-{{ uc_id }}-site-cm --from-file={{ temp_dir.path }}/site.j2.conf"
+      shell: "kubectl --kubeconfig {{ kubeconfig_file.path }} -n {{ zoneNamespace }} create configmap rp-{{ uc_id }}-site-cm --from-file={{ temp_dir.path }}/site.conf"
+
+    # - name: Create RP Deployment
+    #   k8s:
+    #     state: present
+    #     src: "{{ temp_dir.path }}/deployment.yml"
+    #     kubeconfig: "{{ kubeconfig_file.path }}"
+    #
+    # - name: Create RP Service
+    #   k8s:
+    #     state: present
+    #     src: "{{ temp_dir.path }}/service.yml"
+    #     kubeconfig: "{{ kubeconfig_file.path }}"
+    #
+    # - name: Create RP Ingress
+    #   k8s:
+    #     state: present
+    #     src: "{{ temp_dir.path }}/ingress.yml"
+    #     kubeconfig: "{{ kubeconfig_file.path }}"
 
     - name: Create RP Deployment
-      k8s:
-        state: present
-        src: "{{ temp_dir.path }}/deployment.j2.yml"
-        kubeconfig: "{{ kubeconfig_file.path }}"
+      shell: "kubectl --kubeconfig {{ kubeconfig_file.path }} create -f {{ temp_dir.path }}/deployment.yml"
 
     - name: Create RP Service
-      k8s:
-        state: present
-        src: "{{ temp_dir.path }}/service.j2.yml"
-        kubeconfig: "{{ kubeconfig_file.path }}"
+      shell: "kubectl --kubeconfig {{ kubeconfig_file.path }} create -f {{ temp_dir.path }}/service.yml"
 
     - name: Create RP Ingress
-      k8s:
-        state: present
-        src: "{{ temp_dir.path }}/ingress.j2.yml"
-        kubeconfig: "{{ kubeconfig_file.path }}"
+      shell: "kubectl --kubeconfig {{ kubeconfig_file.path }} create -f {{ temp_dir.path }}/ingress.yml"
 
     - name: Finally remove temporary folder
       file:

@@ -6,7 +6,9 @@ metadata:
   namespace: {{ zoneNamespace }}
   annotations:
     nginx.ingress.kubernetes.io/rewrite-target: /
+{% if ingressClass is defined and ingressClass|length %}
     kubernetes.io/ingress.class: {{ ingressClass }}
+{% endif %}    
 spec:
   tls:
     - secretName: openresty-tls
