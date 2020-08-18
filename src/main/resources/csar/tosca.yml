@@ -69,6 +69,7 @@ node_types:
         type: string
         description: |
           UD, options to add to location config.
+        required: false
       serviceUpstreamUrl:
         type: string
         description: |
