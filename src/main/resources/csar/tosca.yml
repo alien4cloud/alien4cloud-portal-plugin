@@ -108,6 +108,7 @@ node_types:
           ZD, the external proxy host name (for example: proxy.cd.artemis).
       ingressClass:
         type: string
+        required: false
         description: |
           ZD, the value of the annotation kubernetes.io/ingress.class (for example: nginx-cd).
     interfaces:
@@ -229,5 +230,3 @@ capability_types:
         required: false
         description: |
           options to add to location config
-
-
