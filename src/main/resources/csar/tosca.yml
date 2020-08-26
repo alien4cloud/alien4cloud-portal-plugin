@@ -196,6 +196,37 @@ node_types:
             name: { get_property: [SELF,name] }
           implementation: scripts/consul_del.sh
 
+  org.alien4cloud.portalplugin.types.IAM:
+    derived_from: tosca.nodes.Root
+    description: |
+      A type that represents an IAM client
+    properties:
+      clientId:
+        type: string
+        description: |
+          IAM client ID
+        required: true
+      clientSecret:
+        type: string
+        description: |
+          IAM client secret
+        required: false
+      iamInternalUrl:
+        type: string
+        description: |
+          IAM internal base URL
+        required: false
+      iamExternalUrl:
+        type: string
+        description: |
+          IAM external base URL
+        required: false
+      openidUri:
+        type: string
+        description: |
+          OpenID URI
+        required: false
+      
 capability_types:
   org.alien4cloud.portalplugin.capabilities.KubeServiceProxiedEndpoint:
     derived_from: org.alien4cloud.kubernetes.api.capabilities.KubeServiceEndpoint
@@ -230,3 +261,14 @@ capability_types:
         required: false
         description: |
           options to add to location config
+      portalTabname:
+        type: string
+        required: true
+        description: |
+          tab name in portal UI
+        default: cas-usage
+      proxied_url:
+        type: string
+        required: false
+        description: |
+           proxied URL of the service

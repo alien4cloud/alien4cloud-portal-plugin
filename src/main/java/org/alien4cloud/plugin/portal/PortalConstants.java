@@ -9,4 +9,6 @@ public class PortalConstants {
     public static final String PROXIED_SERVICE = "org.alien4cloud.portalplugin.types.KubeServiceProxied";
 
     public static final String RP_CONFIGURATOR = "org.alien4cloud.portalplugin.types.ReverseProxyConfigurator";
+
+    public static final String IAM_TYPE = "org.alien4cloud.portalplugin.types.IAM";
 }

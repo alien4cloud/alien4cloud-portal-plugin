@@ -12,3 +12,7 @@ component_descriptors:
     description: >
       Modifier that adds a consul publisher and a reverse proxy configurator
       Insert this modifier to post-matched-node-setup phase.
+  - bean_name: iam-manager
+    name: IAM Manager
+    description: >
+      Modifier that manages interactions with IAM
