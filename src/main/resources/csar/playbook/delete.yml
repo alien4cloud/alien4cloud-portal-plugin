@@ -16,32 +16,41 @@
         content: "{{ kubeConfig }}"
         dest: "{{ kubeconfig_file.path }}"
 
+#    - name: Remove RM Ingress
+#      k8s:
+#        state: absent
+#        api_version: networking.k8s.io/v1beta1
+#        kind: Ingress
+#        namespace: "{{ zoneNamespace }}"
+#        name: "rp-{{ uc_id }}-ingress"
+#        kubeconfig: "{{ kubeconfig_file.path }}"
+
+#    - name: Remove RM Service
+#      k8s:
+#        state: absent
+#        api_version: v1
+#        kind: Service
+#        namespace: "{{ zoneNamespace }}"
+#        name: "rp-{{ uc_id }}-svc"
+#        kubeconfig: "{{ kubeconfig_file.path }}"
+
+#    - name: Remove RM Deployment
+#      k8s:
+#        state: absent
+#        api_version: apps/v1
+#        kind: Deployment
+#        namespace: "{{ zoneNamespace }}"
+#        name: "rp-{{ uc_id }}"
+#        kubeconfig: "{{ kubeconfig_file.path }}"
+
     - name: Remove RM Ingress
-      k8s:
-        state: absent
-        api_version: networking.k8s.io/v1beta1
-        kind: Ingress
-        namespace: "{{ zoneNamespace }}"
-        name: "rp-{{ uc_id }}-ingress"
-        kubeconfig: "{{ kubeconfig_file.path }}"
+      shell: "kubectl --kubeconfig {{ kubeconfig_file.path }} -n {{ zoneNamespace }} delete ingress rp-{{ uc_id }}-ingress"
 
     - name: Remove RM Service
-      k8s:
-        state: absent
-        api_version: v1
-        kind: Service
-        namespace: "{{ zoneNamespace }}"
-        name: "rp-{{ uc_id }}-svc"
-        kubeconfig: "{{ kubeconfig_file.path }}"
+      shell: "kubectl --kubeconfig {{ kubeconfig_file.path }} -n {{ zoneNamespace }} delete service rp-{{ uc_id }}-svc"
 
     - name: Remove RM Deployment
-      k8s:
-        state: absent
-        api_version: apps/v1
-        kind: Deployment
-        namespace: "{{ zoneNamespace }}"
-        name: "rp-{{ uc_id }}"
-        kubeconfig: "{{ kubeconfig_file.path }}"
+      shell: "kubectl --kubeconfig {{ kubeconfig_file.path }} -n {{ zoneNamespace }} delete deployment rp-{{ uc_id }}"
 
     - name: Delete nginx configMap
       shell: "kubectl --kubeconfig {{ kubeconfig_file.path }} -n {{ zoneNamespace }} delete configmap rp-{{ uc_id }}-nginx-cm"
