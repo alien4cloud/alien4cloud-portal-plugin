@@ -51,6 +51,7 @@ import static org.alien4cloud.plugin.kubernetes.modifier.KubernetesAdapterModifi
 
 import org.alien4cloud.plugin.portal.configuration.PortalPortalConfiguration;
 import org.alien4cloud.plugin.portal.model.*;
+import static org.alien4cloud.plugin.portal.PortalConstants.IAM_RELATION;
 import static org.alien4cloud.plugin.portal.PortalConstants.IAM_TYPE;
 import static org.alien4cloud.plugin.portal.PortalConstants.PROXIED_SERVICE;
 
@@ -147,6 +148,19 @@ public class IAMManagerModifier extends TopologyModifierSupport {
            }
            log.debug("Module qualifiedName: {}", qualifiedName);
 
+           /* look for IAM node from module relations and set proxied_url */
+           Map<String, RelationshipTemplate> relationships = module.getRelationships();
+           for (String nrel : safe(relationships).keySet()) {
+              String reltype = relationships.get(nrel).getRequirementType();
+              if (reltype.equals(IAM_RELATION)) {
+                 NodeTemplate iamnode = safe(topology.getNodeTemplates()).get(relationships.get(nrel).getTarget());
+                 Capability iamendpoint = safe(iamnode.getCapabilities()).get("iam_endpoint");
+                 if (iamendpoint != null) {
+                    iamendpoint.getProperties().put("proxied_url", new ScalarPropertyValue(url));
+                 }
+              }
+           }
+
            /* get tab name */
            String tabname = PropertyUtil.getScalarValue(safe(endpoint.getProperties()).get("portalTabname"));
            if (StringUtils.isBlank(tabname)) {
@@ -161,11 +175,21 @@ public class IAMManagerModifier extends TopologyModifierSupport {
 
         /* manage IAM clients */
         for (NodeTemplate node : TopologyNavigationUtil.getNodesOfType(topology, IAM_TYPE, true)) {
-           setNodePropertyPathValue(null,topology,node,"iamInternalUrl", new ScalarPropertyValue(portalConfiguration.getParameter(zone, "iamBaseUrl")));
-           setNodePropertyPathValue(null,topology,node,"iamExternalUrl", new ScalarPropertyValue(portalConfiguration.getParameter(zone, "iamExternalUrl")));
-           setNodePropertyPathValue(null,topology,node,"openidUri", new ScalarPropertyValue(portalConfiguration.getParameter(zone, "openidUri")));
 
-           String clientId = PropertyUtil.getScalarValue(node.getProperties().get("clientId"));
+           Capability endpoint = safe(node.getCapabilities()).get("iam_endpoint");
+           if (endpoint == null) {
+              log.warn ("No iam_endpoint for {}, skip it", node.getName());
+              continue;
+           }
+
+           endpoint.getProperties().put("iamInternalUrl", new ScalarPropertyValue(portalConfiguration.getParameter(zone, "iamBaseUrl")));
+           endpoint.getProperties().put("iamExternalUrl", new ScalarPropertyValue(portalConfiguration.getParameter(zone, "iamExternalUrl")));
+           endpoint.getProperties().put("openidUri", new ScalarPropertyValue(portalConfiguration.getParameter(zone, "openidUri")));
+           endpoint.getProperties().put("proxyBaseUrl", new ScalarPropertyValue(portalConfiguration.getParameter(zone, "proxyBaseUrl")));
+           endpoint.getProperties().put("proxyHost", new ScalarPropertyValue(portalConfiguration.getParameter(zone, "proxyHost")));
+           endpoint.getProperties().put("portalExternalUrl", new ScalarPropertyValue(portalConfiguration.getParameter(zone, "portalExternalUrl")));
+
+           String clientId = PropertyUtil.getScalarValue(endpoint.getProperties().get("clientId"));
 
            String clientSecret = createClient (clientId, zone);
 
@@ -173,7 +197,7 @@ public class IAMManagerModifier extends TopologyModifierSupport {
               context.log().warn("Can not get client secret for {}", clientId);
            }
 
-           setNodePropertyPathValue(null,topology,node,"clientSecret", new ScalarPropertyValue(clientSecret));
+           endpoint.getProperties().put("clientSecret", new ScalarPropertyValue(clientSecret));
         }
     }
 

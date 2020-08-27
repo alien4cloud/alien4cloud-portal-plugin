@@ -200,33 +200,10 @@ node_types:
     derived_from: tosca.nodes.Root
     description: |
       A type that represents an IAM client
-    properties:
-      clientId:
-        type: string
-        description: |
-          IAM client ID
-        required: true
-      clientSecret:
-        type: string
-        description: |
-          IAM client secret
-        required: false
-      iamInternalUrl:
-        type: string
-        description: |
-          IAM internal base URL
-        required: false
-      iamExternalUrl:
-        type: string
-        description: |
-          IAM external base URL
-        required: false
-      openidUri:
-        type: string
-        description: |
-          OpenID URI
-        required: false
-      
+    capabilities:
+      iam_endpoint:
+        type: org.alien4cloud.portalplugin.capabilities.IAMEndpoint
+
 capability_types:
   org.alien4cloud.portalplugin.capabilities.KubeServiceProxiedEndpoint:
     derived_from: org.alien4cloud.kubernetes.api.capabilities.KubeServiceEndpoint
@@ -272,3 +249,54 @@ capability_types:
         required: false
         description: |
            proxied URL of the service
+
+  org.alien4cloud.portalplugin.capabilities.IAMEndpoint:
+    derived_from: tosca.capabilities.Root
+    description: >
+      An IAM endpoint
+    properties:
+      clientId:
+        type: string
+        description: |
+          IAM client ID
+        required: true
+      clientSecret:
+        type: string
+        description: |
+          IAM client secret
+        required: false
+      iamInternalUrl:
+        type: string
+        description: |
+          IAM internal base URL
+        required: false
+      iamExternalUrl:
+        type: string
+        description: |
+          IAM external base URL
+        required: false
+      openidUri:
+        type: string
+        description: |
+          OpenID URI
+        required: false
+      proxied_url:
+        type: string
+        description: |
+          proxied URL of the service
+        required: false
+      proxyBaseUrl:
+        type: string
+        description: |
+          proxy base URL
+        required: false
+      proxyHost:
+        type: string
+        description: |
+          proxy host
+        required: false
+      portalExternalUrl:
+        type: string
+        description: |
+          portal external base url
+        required: false

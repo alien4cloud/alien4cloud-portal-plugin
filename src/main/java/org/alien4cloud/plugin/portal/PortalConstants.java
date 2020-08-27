@@ -11,4 +11,6 @@ public class PortalConstants {
     public static final String RP_CONFIGURATOR = "org.alien4cloud.portalplugin.types.ReverseProxyConfigurator";
 
     public static final String IAM_TYPE = "org.alien4cloud.portalplugin.types.IAM";
+
+    public static final String IAM_RELATION= "org.alien4cloud.portalplugin.capabilities.IAMEndpoint";
 }
