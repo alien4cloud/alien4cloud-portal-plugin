@@ -241,7 +241,7 @@ public class PortalPublisherModifier extends TopologyModifierSupport {
            data.setDeploymentDate ( (new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss")).format(new Date()).toString() );
            data.setType (PropertyUtil.getScalarValue(safe(endpoint.getProperties()).get("service_type")));
            data.setUrl(url);
-           data.setUpstreamUrl(upstreamUrl);
+           // data.setUpstreamUrl(upstreamUrl);
            data.setZone(zone);
 
            try {
