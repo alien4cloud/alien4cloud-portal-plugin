@@ -5,6 +5,8 @@ import lombok.Setter;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
+import java.util.List;
+
 @Getter
 @Setter
 
@@ -12,4 +14,6 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 public class Client {
    String id;
    String clientId;
+   List<String> redirectUris;
+   List<String> webOrigins;
 }

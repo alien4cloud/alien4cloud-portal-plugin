@@ -330,6 +330,10 @@ public class IAMManagerModifier extends TopologyModifierSupport {
        String url = baseUrl + "/auth/admin/realms/" + realm + "/clients";
        Client client = new Client();
        client.setClientId(clientId);
+       ArrayList<String> star = new ArrayList<String>();
+       star.add("*");
+       client.setRedirectUris(star);
+       client.setWebOrigins(star);
 
        StringBuffer error = new StringBuffer();
        String result = this.<Client,String>sendRequest (url, HttpMethod.POST, client, String.class, zone, true, error);
