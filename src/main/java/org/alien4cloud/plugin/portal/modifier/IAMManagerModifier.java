@@ -31,6 +31,7 @@ import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.util.MultiValueMap;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
 
@@ -223,7 +224,7 @@ public class IAMManagerModifier extends TopologyModifierSupport {
      * test whether a role exists or not
      **/
     private boolean existRole (String name, String zone) {
-       String baseUrl = portalConfiguration.getParameter (zone, "iamBaseUrl");
+       String baseUrl = portalConfiguration.getParameter (zone, "iamApiUrl");
        String realm = portalConfiguration.getParameter (zone, "realm");
        String url = baseUrl + "/auth/admin/realms/" + realm + "/roles/" + name + "_casusage_role";
 
@@ -242,7 +243,7 @@ public class IAMManagerModifier extends TopologyModifierSupport {
      * create role, return false if error
      **/
     private boolean doCreateRole(String name, String tabname, String zone) {
-       String baseUrl = portalConfiguration.getParameter (zone, "iamBaseUrl");
+       String baseUrl = portalConfiguration.getParameter (zone, "iamApiUrl");
        String realm = portalConfiguration.getParameter (zone, "realm");
        String url = baseUrl + "/auth/admin/realms/" + realm + "/roles";
        name = name + "_casusage_role";
@@ -306,7 +307,7 @@ public class IAMManagerModifier extends TopologyModifierSupport {
      * get a client, return null if not found
      **/
     private Client getClient (String clientId, String zone) {
-       String baseUrl = portalConfiguration.getParameter (zone, "iamBaseUrl");
+       String baseUrl = portalConfiguration.getParameter (zone, "iamApiUrl");
        String realm = portalConfiguration.getParameter (zone, "realm");
        String url = baseUrl + "/auth/admin/realms/" + realm + "/clients?clientId=" + clientId;
 
@@ -325,7 +326,7 @@ public class IAMManagerModifier extends TopologyModifierSupport {
      * create client
      **/
     private void doCreateClient(String clientId, String zone) {
-       String baseUrl = portalConfiguration.getParameter (zone, "iamBaseUrl");
+       String baseUrl = portalConfiguration.getParameter (zone, "iamApiUrl");
        String realm = portalConfiguration.getParameter (zone, "realm");
        String url = baseUrl + "/auth/admin/realms/" + realm + "/clients";
        Client client = new Client();
@@ -348,7 +349,7 @@ public class IAMManagerModifier extends TopologyModifierSupport {
      * get client secret
      **/
     private String getSecret (String clientId, String zone) {
-       String baseUrl = portalConfiguration.getParameter (zone, "iamBaseUrl");
+       String baseUrl = portalConfiguration.getParameter (zone, "iamApiUrl");
        String realm = portalConfiguration.getParameter (zone, "realm");
        String url = baseUrl + "/auth/admin/realms/" + realm + "/clients/" + clientId + "/client-secret";
 
@@ -405,6 +406,9 @@ public class IAMManagerModifier extends TopologyModifierSupport {
           }
           log.warn ("{} {} => HTTP error {}", method, url, he.getStatusCode());
           err.append("HTTP error: " + he.getStatusCode());
+       } catch (HttpServerErrorException he) {
+          log.error ("{} {} => HTTP error {}", method, url, he.getStatusCode());
+          err.append("HTTP error: " + he.getStatusCode());
        } catch (ResourceAccessException re) {
           log.error  ("Cannot send request: {}", re.getMessage());
           err.append(re.getMessage());
@@ -429,7 +433,7 @@ public class IAMManagerModifier extends TopologyModifierSupport {
           return;
        }
 
-       String baseUrl = portalConfiguration.getParameter (zone, "iamBaseUrl");
+       String baseUrl = portalConfiguration.getParameter (zone, "iamApiUrl");
        String openidUri = portalConfiguration.getParameter (zone, "openidUri");
 
        HttpHeaders headers = new HttpHeaders();
@@ -446,6 +450,8 @@ public class IAMManagerModifier extends TopologyModifierSupport {
           token = restTemplate.postForObject(baseUrl+openidUri+"/token", request, Token.class);
           log.debug("Token {}", token.getAccessToken());
        } catch (HttpClientErrorException he) { 
+          log.error ("Cannot get token: HTTP error {}", he.getStatusCode());
+       } catch (HttpServerErrorException he) { 
           log.error ("Cannot get token: HTTP error {}", he.getStatusCode());
        } catch (ResourceAccessException re) {
           log.error  ("Cannot get token: {}", re.getMessage());
