@@ -443,7 +443,10 @@ public class IAMManagerModifier extends TopologyModifierSupport {
        map.add("username", portalConfiguration.getParameter (zone, "user"));
        map.add("password", portalConfiguration.getParameter (zone, "password"));
        map.add("client_id", portalConfiguration.getParameter (zone, "clientId"));
-       map.add("client_secret", portalConfiguration.getParameter (zone, "clientSecret"));
+       String secret = portalConfiguration.getParameter (zone, "clientSecret");
+       if ((secret != null) && !secret.trim().equals("")) {
+          map.add("client_secret", secret);
+       }
        map.add("grant_type", "password");
 
        HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<MultiValueMap<String, String>>(map, headers);
