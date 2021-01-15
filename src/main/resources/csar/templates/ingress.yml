@@ -19,4 +19,4 @@ spec:
           - path: {{ contextPath }}
             backend:
               serviceName: rp-{{ uc_id }}-svc
-              servicePort: 8001
+              servicePort: 8002

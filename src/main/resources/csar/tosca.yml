@@ -111,6 +111,26 @@ node_types:
         required: false
         description: |
           ZD, the value of the annotation kubernetes.io/ingress.class (for example: nginx-cd).
+      iamRole:
+        type: string
+        description: |
+          UD, IAM role
+      ssoCheck:
+        type: boolean
+        description:
+          PD, parameter to enable or disable session check
+      smdCheck:
+        type: boolean
+        description:
+          PD, parameter to enable or disable PDS check
+      smdCacheEnable:
+        type: boolean
+        description:
+          PD, parameter to enable or disable SMD cache
+      smdCacheTTL:
+        type: integer
+        description:
+          PD, SMD cache TTL
     interfaces:
       Standard:
         create:
@@ -134,6 +154,11 @@ node_types:
             contextPath: { get_property: [SELF, contextPath] }
             proxyHost: { get_property: [SELF, proxyHost] }
             ingressClass: { get_property: [SELF, ingressClass] }
+            iamRole: { get_property: [SELF, iamRole] }
+            ssoCheck: { get_property: [SELF, ssoCheck] }
+            smdCheck: { get_property: [SELF, smdCheck] }
+            smdCacheEnable: { get_property: [SELF, smdCacheEnable] }
+            smdCacheTTL: { get_property: [SELF, smdCacheTTL] }
           implementation: playbook/create.yml
         delete:
           inputs:

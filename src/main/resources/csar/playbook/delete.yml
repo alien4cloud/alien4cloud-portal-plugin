@@ -61,6 +61,9 @@
     - name: Delete site configMap
       shell: "kubectl --kubeconfig {{ kubeconfig_file.path }} -n {{ zoneNamespace }} delete configmap rp-{{ uc_id }}-site-cm"
 
+    - name: Delete app configMap
+      shell: "kubectl --kubeconfig {{ kubeconfig_file.path }} -n {{ zoneNamespace }} delete configmap rp-{{ uc_id }}-app-cm"
+
     - name: Finally remove kubeconfig temporary file
       file:
         path: "{{ kubeconfig_file.path }}"

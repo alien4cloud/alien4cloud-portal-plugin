@@ -76,7 +76,8 @@ public class PortalPublisherModifier extends TopologyModifierSupport {
                                        "replicaCount", "proxyBaseUrl",
                                        "proxyHost", "dnsResolver",
                                        "zoneNamespace", "imageUrl",
-                                       "ingressClass").collect(Collectors.toList());
+                                       "ingressClass", "ssoCheck", "smdCheck",
+                                       "smdCacheEnable", "smdCacheTTL").collect(Collectors.toList());
 
     @Override
     @ToscaContextual
@@ -297,6 +298,7 @@ public class PortalPublisherModifier extends TopologyModifierSupport {
            if (!StringUtils.isBlank(locationOptions)) {
               setNodePropertyPathValue(null,topology,rpnode,"locationOptions", new ScalarPropertyValue(locationOptions));
            }
+           setNodePropertyPathValue(null,topology,rpnode,"iamRole", new ScalarPropertyValue(qualifiedName + "_casusage_role"));
 
            /* add relationship on target node so as to be run after the node is deployed */
            addRelationshipTemplate (null, topology, rpnode, kubeDRnode.getName(), NormativeRelationshipConstants.DEPENDS_ON,
