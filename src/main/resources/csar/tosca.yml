@@ -105,7 +105,11 @@ node_types:
       proxyHost:
         type: string
         description: |
-          ZD, the external proxy host name (for example: proxy.cd.artemis).
+          ZD, the proxy host name (for example: proxy.cd.artemis).
+      proxyHostExternal:
+        type: string
+        description: |
+          ZD, the external proxy host name (for example: proxy-zds1.dev.client).
       ingressClass:
         type: string
         required: false
@@ -153,6 +157,7 @@ node_types:
             imageUrl: { get_property: [SELF, imageUrl] }
             contextPath: { get_property: [SELF, contextPath] }
             proxyHost: { get_property: [SELF, proxyHost] }
+            proxyHostExternal: { get_property: [SELF, proxyHostExternal] }
             ingressClass: { get_property: [SELF, ingressClass] }
             iamRole: { get_property: [SELF, iamRole] }
             ssoCheck: { get_property: [SELF, ssoCheck] }

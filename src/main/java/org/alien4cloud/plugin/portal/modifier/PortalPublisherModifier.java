@@ -77,7 +77,8 @@ public class PortalPublisherModifier extends TopologyModifierSupport {
                                        "proxyHost", "dnsResolver",
                                        "zoneNamespace", "imageUrl",
                                        "ingressClass", "ssoCheck", "smdCheck",
-                                       "smdCacheEnable", "smdCacheTTL").collect(Collectors.toList());
+                                       "smdCacheEnable", "smdCacheTTL",
+                                       "proxyHostExternal").collect(Collectors.toList());
 
     @Override
     @ToscaContextual
