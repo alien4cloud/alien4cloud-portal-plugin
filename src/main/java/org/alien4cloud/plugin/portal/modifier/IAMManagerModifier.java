@@ -192,6 +192,11 @@ public class IAMManagerModifier extends TopologyModifierSupport {
            endpoint.getProperties().put("portalExternalUrl", new ScalarPropertyValue(portalConfiguration.getParameter(zone, "portalExternalUrl")));
 
            String clientId = PropertyUtil.getScalarValue(endpoint.getProperties().get("clientId"));
+           if (StringUtils.isBlank(clientId)) {
+             clientId = "L_ACU_" + context.getEnvironmentContext().get().getApplication().getName();
+             endpoint.getProperties().put("clientId", new ScalarPropertyValue(clientId));
+             log.debug ("Generating clientId: {}", clientId);
+           }
 
            String clientSecret = createClient (clientId, zone);
 

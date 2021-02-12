@@ -300,7 +300,7 @@ capability_types:
         type: string
         description: |
           IAM client ID
-        required: true
+        required: false
       clientSecret:
         type: string
         description: |
