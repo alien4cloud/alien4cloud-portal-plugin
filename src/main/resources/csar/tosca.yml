@@ -135,6 +135,11 @@ node_types:
         type: integer
         description:
           PD, SMD cache TTL
+      ingressOptions:
+        type: string
+        description: |
+          UD, options to add to ingress
+        required: false
     interfaces:
       Standard:
         create:
@@ -164,6 +169,7 @@ node_types:
             smdCheck: { get_property: [SELF, smdCheck] }
             smdCacheEnable: { get_property: [SELF, smdCacheEnable] }
             smdCacheTTL: { get_property: [SELF, smdCacheTTL] }
+            ingressOptions: { get_property: [SELF, ingressOptions] }
           implementation: playbook/create.yml
         delete:
           inputs:
@@ -279,6 +285,11 @@ capability_types:
         required: false
         description: |
            proxied URL of the service
+      ingressOptions:
+        type: string
+        required: false
+        description: |
+          options to add to ingress
 
   org.alien4cloud.portalplugin.capabilities.IAMEndpoint:
     derived_from: tosca.capabilities.Root

@@ -209,6 +209,7 @@ public class PortalPublisherModifier extends TopologyModifierSupport {
            String url_path = PropertyUtil.getScalarValue(safe(endpoint.getProperties()).get("url_path"));
            String description = PropertyUtil.getScalarValue(safe(endpoint.getProperties()).get("description"));
            String locationOptions = PropertyUtil.getScalarValue(safe(endpoint.getProperties()).get("locationOptions"));
+           String ingressOptions = PropertyUtil.getScalarValue(safe(endpoint.getProperties()).get("ingressOptions"));
 
            String url = portalConfiguration.getParameter (zone, "proxyBaseUrl") + url_path;
 
@@ -298,6 +299,9 @@ public class PortalPublisherModifier extends TopologyModifierSupport {
            setNodePropertyPathValue(null,topology,rpnode,"kubeConfig", new ScalarPropertyValue(kubeConfig));
            if (!StringUtils.isBlank(locationOptions)) {
               setNodePropertyPathValue(null,topology,rpnode,"locationOptions", new ScalarPropertyValue(locationOptions));
+           }
+           if (!StringUtils.isBlank(ingressOptions)) {
+              setNodePropertyPathValue(null,topology,rpnode,"ingressOptions", new ScalarPropertyValue(ingressOptions));
            }
            setNodePropertyPathValue(null,topology,rpnode,"iamRole", new ScalarPropertyValue(qualifiedName + "_casusage_role"));
 

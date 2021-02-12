@@ -7,7 +7,12 @@ metadata:
   annotations:
 {% if ingressClass is defined and ingressClass|length %}
     kubernetes.io/ingress.class: {{ ingressClass }}
-{% endif %}    
+{% endif %} 
+{% if ingressOptions is defined and ingressOptions|length %}
+{% for line in ingressOptions.splitlines() %}
+    {{ line }}
+{% endfor %}
+{% endif %}   
 spec:
   tls:
     - secretName: openresty-tls
