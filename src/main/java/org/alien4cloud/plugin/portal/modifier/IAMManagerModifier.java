@@ -71,7 +71,28 @@ public class IAMManagerModifier extends TopologyModifierSupport {
     @Resource
     protected PortalPortalConfiguration portalConfiguration;
 
-    private Token token = null;
+    /* tokens per zone */
+    private Map<String,Token> tokens = new HashMap<String,Token>();
+
+    /* A4C client secret per zone */
+    private Map<String,String> a4cClientSecrets = new HashMap<String,String>();
+
+    /* get A4C client secret for one zone */
+    private String getA4CClientSecret(String zone) {
+       /* return secret if already got from keycloak */
+       String secret = a4cClientSecrets.get(zone);
+       if (secret != null) {
+          return secret;
+       }
+       /* else get it from keycloak using a temporary token for client admin-cli */
+       Token initToken = getToken (zone, "admin-cli", null);
+       log.debug ("Init token {} for zone {}", initToken.getAccessToken(), zone);
+       String clientId = portalConfiguration.getParameter(zone, "clientId");
+       secret = getSecretFromClientId (initToken, clientId, zone);
+       log.debug ("{} secret {} for zone {}", clientId, secret, zone);
+       a4cClientSecrets.put (zone, secret);
+       return secret;
+    }
 
     @Override
     @ToscaContextual
@@ -212,15 +233,15 @@ public class IAMManagerModifier extends TopologyModifierSupport {
      * create role in keycloak if it does not exist yet, return false if error 
      **/
     private boolean createRole (String qualifiedName, String tabname, String zone) {
-       getToken(zone);
+       Token token = getToken(zone);
 
        if ((token == null) || StringUtils.isBlank(token.getAccessToken())) {
           log.error ("No token, cannot perform");
           return false;
        }
 
-       if (!existRole(qualifiedName, zone)) {
-          return doCreateRole (qualifiedName, tabname, zone);
+       if (!existRole(token, qualifiedName, zone)) {
+          return doCreateRole (token, qualifiedName, tabname, zone);
        }
 
        return true;
@@ -229,13 +250,13 @@ public class IAMManagerModifier extends TopologyModifierSupport {
     /**
      * test whether a role exists or not
      **/
-    private boolean existRole (String name, String zone) {
+    private boolean existRole (Token token, String name, String zone) {
        String baseUrl = portalConfiguration.getParameter (zone, "iamApiUrl");
        String realm = portalConfiguration.getParameter (zone, "realm");
        String url = baseUrl + "/auth/admin/realms/" + realm + "/roles/" + name + "_casusage_role";
 
        StringBuffer error = new StringBuffer();
-       Role result = this.<Object, Role>sendRequest (url, HttpMethod.GET, null, Role.class, zone, true, error);
+       Role result = this.<Object, Role>sendRequest (token, url, HttpMethod.GET, null, Role.class, zone, true, error);
        if (error.length()==0) {
           log.debug ("Role {} found", name);
           return true;
@@ -248,7 +269,7 @@ public class IAMManagerModifier extends TopologyModifierSupport {
     /**
      * create role, return false if error
      **/
-    private boolean doCreateRole(String name, String tabname, String zone) {
+    private boolean doCreateRole(Token token, String name, String tabname, String zone) {
        String baseUrl = portalConfiguration.getParameter (zone, "iamApiUrl");
        String realm = portalConfiguration.getParameter (zone, "realm");
        String url = baseUrl + "/auth/admin/realms/" + realm + "/roles";
@@ -265,7 +286,7 @@ public class IAMManagerModifier extends TopologyModifierSupport {
 
        /* create role */
        StringBuffer error = new StringBuffer();
-       String result = this.<Role, String>sendRequest (url, HttpMethod.POST, role, String.class, zone, true, error);
+       String result = this.<Role, String>sendRequest (token, url, HttpMethod.POST, role, String.class, zone, true, error);
        if (error.length()==0) {
           log.debug ("Role {} created", name);
        } else {
@@ -276,7 +297,7 @@ public class IAMManagerModifier extends TopologyModifierSupport {
        /* update role (to set tabname) */
        error = new StringBuffer();
        url = url + "/" + name;
-       result = this.<Role, String>sendRequest (url, HttpMethod.PUT, role, String.class, zone, true, error);
+       result = this.<Role, String>sendRequest (token, url, HttpMethod.PUT, role, String.class, zone, true, error);
        if (error.length()==0) {
           log.debug ("Role {} updated", name);
        } else {
@@ -290,35 +311,35 @@ public class IAMManagerModifier extends TopologyModifierSupport {
      * create client in keycloak if it does not exist yet, return client secret 
      **/
     private String createClient (String clientId, String zone) {
-       getToken(zone);
+       Token token = getToken(zone);
 
        if ((token == null) || StringUtils.isBlank(token.getAccessToken())) {
           log.error ("No token, cannot perform");
           return "";
        }
 
-       Client client = getClient(clientId, zone);
+       Client client = getClient(token, clientId, zone);
        if (client == null) {
-          doCreateClient(clientId, zone);
-          client = getClient(clientId, zone);
+          doCreateClient(token, clientId, zone);
+          client = getClient(token, clientId, zone);
        }
        if (client == null)
        {
           return "";
        }
-       return getSecret(client.getId(), zone);
+       return getSecret(token, client.getId(), zone);
     }
 
     /**
      * get a client, return null if not found
      **/
-    private Client getClient (String clientId, String zone) {
+    private Client getClient (Token token, String clientId, String zone) {
        String baseUrl = portalConfiguration.getParameter (zone, "iamApiUrl");
        String realm = portalConfiguration.getParameter (zone, "realm");
        String url = baseUrl + "/auth/admin/realms/" + realm + "/clients?clientId=" + clientId;
 
        StringBuffer error = new StringBuffer();
-       Client[] result = this.<Object, Client[]>sendRequest (url, HttpMethod.GET, null, Client[].class, zone, true, error);
+       Client[] result = this.<Object, Client[]>sendRequest (token, url, HttpMethod.GET, null, Client[].class, zone, true, error);
        if ((error.length()==0) && (result.length > 0)) {
           log.debug ("Client {} found", clientId);
           return result[0];
@@ -331,7 +352,7 @@ public class IAMManagerModifier extends TopologyModifierSupport {
     /**
      * create client
      **/
-    private void doCreateClient(String clientId, String zone) {
+    private void doCreateClient(Token token, String clientId, String zone) {
        String baseUrl = portalConfiguration.getParameter (zone, "iamApiUrl");
        String realm = portalConfiguration.getParameter (zone, "realm");
        String url = baseUrl + "/auth/admin/realms/" + realm + "/clients";
@@ -343,7 +364,7 @@ public class IAMManagerModifier extends TopologyModifierSupport {
        client.setWebOrigins(star);
 
        StringBuffer error = new StringBuffer();
-       String result = this.<Client,String>sendRequest (url, HttpMethod.POST, client, String.class, zone, true, error);
+       String result = this.<Client,String>sendRequest (token, url, HttpMethod.POST, client, String.class, zone, true, error);
        if (error.length()==0) {
           log.debug ("Client {} created", clientId);
        } else {
@@ -352,15 +373,27 @@ public class IAMManagerModifier extends TopologyModifierSupport {
     }
 
     /**
+     * get client secret for given client 
+     **/
+    public String getSecretFromClientId (Token token, String clientName, String zone) {
+       Client client = getClient (token, clientName, zone);
+       if (client == null) {
+          log.error ("Can not find client {}", clientName);
+          return null;
+       }
+       return getSecret (token, client.getId(), zone);
+    }
+
+    /**
      * get client secret
      **/
-    private String getSecret (String clientId, String zone) {
+    private String getSecret (Token token, String clientId, String zone) {
        String baseUrl = portalConfiguration.getParameter (zone, "iamApiUrl");
        String realm = portalConfiguration.getParameter (zone, "realm");
        String url = baseUrl + "/auth/admin/realms/" + realm + "/clients/" + clientId + "/client-secret";
 
        StringBuffer error = new StringBuffer();
-       Secret result = this.<Object, Secret>sendRequest (url, HttpMethod.GET, null, Secret.class, zone, true, error);
+       Secret result = this.<Object, Secret>sendRequest (token, url, HttpMethod.GET, null, Secret.class, zone, true, error);
        if (error.length()==0) {
           log.debug ("secret: {}", result.getValue());
           return result.getValue();
@@ -379,7 +412,7 @@ public class IAMManagerModifier extends TopologyModifierSupport {
      * in case of error err buffer contains error message
      * if error 401 is received, retries once to get a token
      **/
-    private <T,R> R sendRequest (String url, HttpMethod method, T data, Class clazz, String zone, boolean first, StringBuffer err) {
+    private <T,R> R sendRequest (Token token, String url, HttpMethod method, T data, Class clazz, String zone, boolean first, StringBuffer err) {
        RestTemplate restTemplate = null;
        try {
           restTemplate = getRestTemplate();
@@ -404,10 +437,11 @@ public class IAMManagerModifier extends TopologyModifierSupport {
           if ((he.getStatusCode() == HttpStatus.UNAUTHORIZED) && first)
           {
              log.debug ("Token expired, trying again...");
-             token = null;
-             getToken(zone);
+             tokens.remove(zone);
+             token = getToken(zone);
              if ((token != null) && !StringUtils.isBlank(token.getAccessToken())) {
-                return sendRequest (url, method, data, clazz, zone, false, err);
+                tokens.put (zone, token);
+                return sendRequest (token, url, method, data, clazz, zone, false, err);
              }
           }
           log.warn ("{} {} => HTTP error {}", method, url, he.getStatusCode());
@@ -424,21 +458,31 @@ public class IAMManagerModifier extends TopologyModifierSupport {
 
 
     /**
-     * get keycloak token for further use
+     * get keycloak token for A4C client id for one zone
      */
-    private void getToken(String zone) {
+    private Token getToken(String zone) {
+       Token token = tokens.get(zone);
        if ((token != null) && !StringUtils.isBlank(token.getAccessToken())) {
-          return;
+          return token;
        }
+       token = getToken (zone, portalConfiguration.getParameter (zone, "clientId"), getA4CClientSecret(zone));
+       tokens.put(zone, token);
+       return token;
+    }
 
+    /**
+     * get keycloak token for given client id for one zone
+     */
+    public Token getToken (String zone, String clientId, String secret) {
        RestTemplate restTemplate = null;
        try {
           restTemplate = getRestTemplate();
        } catch (Exception e) {
           log.error ("Error creating restTemplate: {}", e.getMessage());
-          return;
+          return null;
        }
 
+       Token token = null;
        String baseUrl = portalConfiguration.getParameter (zone, "iamApiUrl");
        String openidUri = portalConfiguration.getParameter (zone, "openidUri");
 
@@ -447,8 +491,7 @@ public class IAMManagerModifier extends TopologyModifierSupport {
        MultiValueMap<String, String> map= new LinkedMultiValueMap<String, String>();
        map.add("username", portalConfiguration.getParameter (zone, "user"));
        map.add("password", portalConfiguration.getParameter (zone, "password"));
-       map.add("client_id", portalConfiguration.getParameter (zone, "clientId"));
-       String secret = portalConfiguration.getParameter (zone, "clientSecret");
+       map.add("client_id", clientId);
        if ((secret != null) && !secret.trim().equals("")) {
           map.add("client_secret", secret);
        }
@@ -465,6 +508,7 @@ public class IAMManagerModifier extends TopologyModifierSupport {
        } catch (ResourceAccessException re) {
           log.error  ("Cannot get token: {}", re.getMessage());
        }
+       return token;
     }
 
     /**

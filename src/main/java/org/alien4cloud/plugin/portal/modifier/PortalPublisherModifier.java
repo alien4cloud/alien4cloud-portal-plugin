@@ -42,6 +42,7 @@ import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_T
 import org.alien4cloud.plugin.portal.configuration.*;
 import static org.alien4cloud.plugin.portal.PortalConstants.*;
 import static org.alien4cloud.plugin.portal.csar.Version.PORTALPLUGIN_CSAR_VERSION;
+import org.alien4cloud.plugin.portal.model.Token;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -66,19 +67,43 @@ public class PortalPublisherModifier extends TopologyModifierSupport {
     protected PortalPortalConfiguration portalConfiguration;
 
     @Resource
+    protected IAMManagerModifier iamManager;
+
+    @Resource
     private MetaPropertiesService metaPropertiesService;
 
     private final ObjectMapper mapper = new ObjectMapper();
  
+    /* conf parameters which may be per zone or for all zones */
     private List<String> parameters = Stream.of ("iamBaseUrl", "smdUrl", "smdUser",
                                        "smdPassword", "portalClient",
-                                       "portalSecret", "portalBaseUrl",
+                                       "portalBaseUrl",
                                        "replicaCount", "proxyBaseUrl",
                                        "proxyHost", "dnsResolver",
                                        "zoneNamespace", "imageUrl",
                                        "ingressClass", "ssoCheck", "smdCheck",
                                        "smdCacheEnable", "smdCacheTTL",
                                        "proxyHostExternal").collect(Collectors.toList());
+
+    /* portal secrets per zone */
+    private Map<String,String> portalSecrets = new HashMap<String,String>();
+
+    /* get portal secret for one zone */
+    private String getPortalSecret(String zone) {
+        /* return secret if already got from keycloak */
+        String secret = portalSecrets.get(zone);
+        if (secret != null) {
+           return secret;
+        }
+        /* else get it from keycloak using a temporary token for client admin-cli */
+        Token initToken = iamManager.getToken (zone, "admin-cli", null);
+        log.debug ("Init token {} for zone {}", initToken.getAccessToken(), zone);
+        String clientId = portalConfiguration.getParameter(zone, "portalClient");
+        secret = iamManager.getSecretFromClientId (initToken, clientId, zone);
+        log.debug ("{} secret {} for zone {}", clientId, secret, zone);
+        portalSecrets.put (zone, secret);
+        return secret;
+    }
 
     @Override
     @ToscaContextual
@@ -286,6 +311,7 @@ public class PortalPublisherModifier extends TopologyModifierSupport {
            for (String param : parameters) {
               setNodePropertyPathValue(null,topology,rpnode,param,new ScalarPropertyValue(portalConfiguration.getParameter(zone,param))); 
            }
+           setNodePropertyPathValue(null,topology,rpnode,"portalSecret",new ScalarPropertyValue(getPortalSecret(zone))); 
 
            /* set UD properties */ 
            if (!StringUtils.isBlank(url_path)) {
