@@ -10,7 +10,9 @@ import org.alien4cloud.alm.deployment.configuration.flow.EnvironmentContext;
 import org.alien4cloud.alm.deployment.configuration.flow.FlowExecutionContext;
 import org.alien4cloud.alm.deployment.configuration.flow.TopologyModifierSupport;
 
+import org.alien4cloud.tosca.model.definitions.AbstractPropertyValue;
 import org.alien4cloud.tosca.model.definitions.ComplexPropertyValue;
+import org.alien4cloud.tosca.model.definitions.ListPropertyValue;
 import org.alien4cloud.tosca.model.definitions.ScalarPropertyValue;
 import org.alien4cloud.tosca.model.templates.Capability;
 import org.alien4cloud.tosca.model.templates.NodeTemplate;
@@ -40,6 +42,8 @@ import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
+import java.util.Arrays;
+import java.util.stream.Collectors;
 import javax.net.ssl.SSLContext;
 import org.apache.http.conn.ssl.NoopHostnameVerifier;
 import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
@@ -223,7 +227,7 @@ public class IAMManagerModifier extends TopologyModifierSupport {
              log.debug ("Generating clientId: {}", clientId);
            }
 
-           String clientSecret = createClient (clientId, zone);
+           String clientSecret = createClient (clientId, endpoint.getProperties(), zone);
 
            if (clientSecret.equals("")) {
               context.log().warn("Can not get client secret for {}", clientId);
@@ -314,7 +318,7 @@ public class IAMManagerModifier extends TopologyModifierSupport {
     /**
      * create client in keycloak if it does not exist yet, return client secret 
      **/
-    private String createClient (String clientId, String zone) {
+    private String createClient (String clientId, Map<String, AbstractPropertyValue> props, String zone) {
        Token token = getToken(zone);
 
        if ((token == null) || StringUtils.isBlank(token.getAccessToken())) {
@@ -324,13 +328,15 @@ public class IAMManagerModifier extends TopologyModifierSupport {
 
        Client client = getClient(token, clientId, zone);
        if (client == null) {
-          doCreateClient(token, clientId, zone);
+          doCreateClient(token, clientId, props, zone);
           client = getClient(token, clientId, zone);
        }
        if (client == null)
        {
           return "";
        }
+       updateClientRoles (token, clientId, props.get("roles"), zone);
+
        return getSecret(token, client.getId(), zone);
     }
 
@@ -356,16 +362,32 @@ public class IAMManagerModifier extends TopologyModifierSupport {
     /**
      * create client
      **/
-    private void doCreateClient(Token token, String clientId, String zone) {
+    private void doCreateClient(Token token, String clientId, Map<String, AbstractPropertyValue> props, String zone) {
        String baseUrl = portalConfiguration.getParameter (zone, "iamApiUrl");
        String realm = portalConfiguration.getParameter (zone, "realm");
        String url = baseUrl + "/auth/admin/realms/" + realm + "/clients";
        Client client = new Client();
        client.setClientId(clientId);
-       ArrayList<String> star = new ArrayList<String>();
-       star.add("*");
-       client.setRedirectUris(star);
-       client.setWebOrigins(star);
+       client.setEnabled(true);
+       client.setRootUrl(PropertyUtil.getScalarValue(props.get("rootUrl")));
+       client.setBaseUrl(PropertyUtil.getScalarValue(props.get("baseUrl")));
+       client.setAdminUrl(PropertyUtil.getScalarValue(props.get("adminUrl")));
+       String accessType = PropertyUtil.getScalarValue(props.get("accessType"));
+       if ((accessType == null) || accessType.equals("public")) {
+          client.setPublicClient(true);
+       } else {
+          client.setPublicClient(false);
+       }
+       List<Object> oRedirs = ((ListPropertyValue)props.get("validRedirectUris")).getValue();
+       List<String> sRedirs = oRedirs.stream()
+                                     .map(object -> (String)object)
+                                     .collect(Collectors.toList());
+       client.setRedirectUris(sRedirs);
+       List<Object> oWebOs = ((ListPropertyValue)props.get("webOrigins")).getValue();
+       List<String> sWebOs = oWebOs.stream()
+                                     .map(object -> (String)object)
+                                     .collect(Collectors.toList());
+       client.setWebOrigins(sWebOs);
 
        StringBuffer error = new StringBuffer();
        String result = this.<Client,String>sendRequest (token, url, HttpMethod.POST, client, String.class, zone, true, error);
@@ -373,6 +395,80 @@ public class IAMManagerModifier extends TopologyModifierSupport {
           log.debug ("Client {} created", clientId);
        } else {
           log.error ("Cannot create client {}", clientId);
+       }
+    }
+
+    /**
+     * Update client roles
+     **/
+    private void updateClientRoles (Token token, String clientId, AbstractPropertyValue rolePV, String zone) {
+       String baseUrl = portalConfiguration.getParameter (zone, "iamApiUrl");
+       String realm = portalConfiguration.getParameter (zone, "realm");
+
+       /* get existing roles */
+       String url = baseUrl + "/auth/admin/realms/" + realm + "/clients/" + clientId + "/roles";
+
+       StringBuffer error = new StringBuffer();
+       Role[] existingRoles = this.<Object, Role[]>sendRequest (token, url, HttpMethod.GET, null, Role[].class, zone, true, error);
+       if (error.length()!=0) {
+          log.debug ("Cannot get roles for client {}", clientId);
+          return;
+       }
+       List<Role> existingRolesList = Arrays.asList(existingRoles);
+
+       List<Object> oRoles = null;
+       if (rolePV != null) {
+          oRoles = ((ListPropertyValue)rolePV).getValue();
+       }
+       List<Role> newRoles = safe(oRoles).stream()
+                                   .map(object -> new Role((String)((Map)object).get("name"), (String)((Map)object).get("description"), null))
+                                   .collect(Collectors.toList());
+
+       /* delete obsolete roles */
+       safe(existingRolesList).forEach ((role) -> {
+          if (!newRoles.contains(role)) {
+             deleteClientRole (token, role.getName(), clientId, zone);
+          }
+       });
+       /* create new roles */
+       safe(newRoles).forEach ((role) -> {
+          if (!existingRolesList.contains(role)) {
+             createClientRole (token, role, clientId, zone);
+          }
+       });
+    }
+
+    /**
+     * Delete client role
+     **/
+    private void deleteClientRole (Token token, String role, String clientId, String zone) {
+       String baseUrl = portalConfiguration.getParameter (zone, "iamApiUrl");
+       String realm = portalConfiguration.getParameter (zone, "realm");
+
+       String url = baseUrl + "/auth/admin/realms/" + realm + "/clients/" + clientId + "/roles/" + role;
+       log.debug ("Deleting client role {}", role);
+
+       StringBuffer error = new StringBuffer();
+       String result = this.<Object, String>sendRequest (token, url, HttpMethod.DELETE, null, String.class, zone, true, error);
+       if (error.length()!=0) {
+          log.debug ("Cannot delete role {} for client {}", role, clientId);
+       }
+    }
+
+    /**
+     * Create client role
+     **/
+    private void createClientRole (Token token, Role role, String clientId, String zone) {
+       String baseUrl = portalConfiguration.getParameter (zone, "iamApiUrl");
+       String realm = portalConfiguration.getParameter (zone, "realm");
+
+       String url = baseUrl + "/auth/admin/realms/" + realm + "/clients/" + clientId + "/roles";
+       log.debug ("Creating client role {}", role.getName());
+
+       StringBuffer error = new StringBuffer();
+       String result = this.<Role, String>sendRequest (token, url, HttpMethod.POST, role, String.class, zone, true, error);
+       if (error.length()!=0) {
+          log.error ("Cannot create role {} for client {}", role.getName(), clientId);
        }
     }
 

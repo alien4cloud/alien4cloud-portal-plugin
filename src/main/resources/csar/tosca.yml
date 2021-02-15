@@ -296,6 +296,51 @@ capability_types:
     description: >
       An IAM endpoint
     properties:
+      rootUrl:
+        type: string
+        description: |
+          Root URL appended to relative URLs
+        required: false
+      adminUrl:
+        type: string
+        description: |
+          URL to the admin interface of the client
+        required: false
+      baseUrl:
+        type: string
+        description: |
+          Default URL to use when the auth server needs to redirect or link back to the client
+        required: false
+      accessType:
+        type: string
+        description: |
+          Access type
+        default: public
+        constraints:
+          valid_values: [ 'public', 'confidential' ]
+      validRedirectUris:
+        type: list
+        entry_schema:
+           type: string
+        description: |
+          Valid URI pattern a browser can redirect to after a successful login or logout
+        required: false
+        default: ['*']
+      webOrigins:
+        type: list
+        entry_schema: 
+           type: string
+        description: |
+          Allowed CORS origins
+        required: false
+        default: ['*']
+      roles:
+        type: list
+        entry_schema:
+           type:  org.alien4cloud.portalplugin.datatypes.ClientRole
+        description: |
+          Client roles
+        required: false
       clientId:
         type: string
         description: |
@@ -341,3 +386,16 @@ capability_types:
         description: |
           portal external base url
         required: false
+
+data_types:
+
+   org.alien4cloud.portalplugin.datatypes.ClientRole:
+      derived_from: tosca.datatypes.Root
+      properties:
+        name:
+          type: string   
+          description: role name
+        description:
+          type: string   
+          description: role description
+          required: false
