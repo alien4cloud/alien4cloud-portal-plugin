@@ -97,6 +97,10 @@ public class PortalPublisherModifier extends TopologyModifierSupport {
         }
         /* else get it from keycloak using a temporary token for client admin-cli */
         Token initToken = iamManager.getToken (zone, "admin-cli", null);
+        if ((initToken == null) || StringUtils.isBlank(initToken.getAccessToken())) {
+           log.error ("No token, cannot perform");
+           return null;
+        }
         log.debug ("Init token {} for zone {}", initToken.getAccessToken(), zone);
         String clientId = portalConfiguration.getParameter(zone, "portalClient");
         secret = iamManager.getSecretFromClientId (initToken, clientId, zone);
@@ -311,7 +315,10 @@ public class PortalPublisherModifier extends TopologyModifierSupport {
            for (String param : parameters) {
               setNodePropertyPathValue(null,topology,rpnode,param,new ScalarPropertyValue(portalConfiguration.getParameter(zone,param))); 
            }
-           setNodePropertyPathValue(null,topology,rpnode,"portalSecret",new ScalarPropertyValue(getPortalSecret(zone))); 
+           String portalSecret = getPortalSecret(zone);
+           if (!StringUtils.isBlank(portalSecret)) {
+              setNodePropertyPathValue(null,topology,rpnode,"portalSecret",new ScalarPropertyValue(portalSecret)); 
+           }
 
            /* set UD properties */ 
            if (!StringUtils.isBlank(url_path)) {

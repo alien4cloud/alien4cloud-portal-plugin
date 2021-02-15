@@ -86,6 +86,10 @@ public class IAMManagerModifier extends TopologyModifierSupport {
        }
        /* else get it from keycloak using a temporary token for client admin-cli */
        Token initToken = getToken (zone, "admin-cli", null);
+       if ((initToken == null) || StringUtils.isBlank(initToken.getAccessToken())) {
+          log.error ("No token, cannot perform");
+          return null;
+       }
        log.debug ("Init token {} for zone {}", initToken.getAccessToken(), zone);
        String clientId = portalConfiguration.getParameter(zone, "clientId");
        secret = getSecretFromClientId (initToken, clientId, zone);
