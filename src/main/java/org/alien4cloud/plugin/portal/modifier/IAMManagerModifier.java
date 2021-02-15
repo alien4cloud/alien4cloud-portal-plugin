@@ -1,6 +1,14 @@
 package org.alien4cloud.plugin.portal.modifier;
 
+import alien4cloud.deployment.DeploymentRuntimeStateService;
+import alien4cloud.deployment.DeploymentService;
 import alien4cloud.model.common.Tag;
+import alien4cloud.model.deployment.Deployment;
+import alien4cloud.model.deployment.DeploymentTopology;
+import alien4cloud.paas.IPaasEventListener;
+import alien4cloud.paas.IPaasEventService;
+import alien4cloud.paas.model.AbstractMonitorEvent;
+import alien4cloud.paas.model.PaaSDeploymentStatusMonitorEvent;
 import alien4cloud.paas.wf.validation.WorkflowValidator;
 import alien4cloud.tosca.context.ToscaContextual;
 import static alien4cloud.utils.AlienUtils.safe;
@@ -20,8 +28,10 @@ import org.alien4cloud.tosca.model.templates.RelationshipTemplate;
 import org.alien4cloud.tosca.model.templates.Topology;
 import org.alien4cloud.tosca.utils.TopologyNavigationUtil;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+
 import org.apache.commons.lang.StringUtils;
-import org.springframework.stereotype.Component;
 
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -30,6 +40,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
+import org.springframework.stereotype.Component;
 import org.springframework.util.MultiValueMap;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.web.client.HttpClientErrorException;
@@ -54,6 +65,7 @@ import org.apache.http.impl.client.HttpClients;
 import lombok.extern.slf4j.Slf4j;
 
 import static org.alien4cloud.plugin.kubernetes.modifier.KubernetesAdapterModifier.K8S_TYPES_KUBE_NAMESPACE;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_SIMPLE_RESOURCE;
 
 import org.alien4cloud.plugin.portal.configuration.PortalPortalConfiguration;
 import org.alien4cloud.plugin.portal.model.*;
@@ -66,14 +78,28 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import javax.annotation.PostConstruct;
+import javax.annotation.PreDestroy;
 import javax.annotation.Resource;
+import javax.inject.Inject;
 
 @Slf4j
 @Component("iam-manager")
 public class IAMManagerModifier extends TopologyModifierSupport {
 
+    @Inject
+    private IPaasEventService eventService;
+
+    @Inject
+    private DeploymentRuntimeStateService deploymentRuntimeStateService;
+
+    @Inject
+    private DeploymentService deploymentService;
+
     @Resource
     protected PortalPortalConfiguration portalConfiguration;
+
+    private final ObjectMapper mapper = new ObjectMapper();
 
     /* tokens per zone */
     private Map<String,Token> tokens = new HashMap<String,Token>();
@@ -81,6 +107,39 @@ public class IAMManagerModifier extends TopologyModifierSupport {
     /* A4C client secret per zone */
     private Map<String,String> a4cClientSecrets = new HashMap<String,String>();
 
+    @PostConstruct
+    public void init() {
+        eventService.addListener(listener);
+    }
+
+    @PreDestroy
+    public void term() {
+        eventService.removeListener(listener);
+    }
+
+    IPaasEventListener listener = new IPaasEventListener() {
+        @Override
+        public void eventHappened(AbstractMonitorEvent event) {
+             handleEvent((PaaSDeploymentStatusMonitorEvent) event);
+        }
+
+        @Override
+        public boolean canHandle(AbstractMonitorEvent event) {
+            return (event instanceof PaaSDeploymentStatusMonitorEvent);
+        }
+    };
+
+    private void handleEvent(PaaSDeploymentStatusMonitorEvent inputEvent) {
+        Deployment deployment = deploymentService.get(inputEvent.getDeploymentId());
+
+        switch(inputEvent.getDeploymentStatus()) {
+            case UNDEPLOYED:
+                processUnDeployment (deployment);
+                break;
+            default:
+                return;
+        }
+    }
     /* get A4C client secret for one zone */
     private String getA4CClientSecret(String zone) {
        /* return secret if already got from keycloak */
@@ -115,6 +174,57 @@ public class IAMManagerModifier extends TopologyModifierSupport {
             WorkflowValidator.disableValidationThreadLocal.remove();
             log.debug("Finished processing topology " + topology.getId());
         }
+    }
+
+    private void processUnDeployment (Deployment deployment) {
+        log.info ("Processing undeployment " + deployment.getId());
+        DeploymentTopology deployedTopology = deploymentRuntimeStateService.getRuntimeTopology(deployment.getId());
+        String zone = null;
+
+        NodeTemplate kubeNS = null;
+        for (NodeTemplate node : TopologyNavigationUtil.getNodesOfType(deployedTopology, K8S_TYPES_SIMPLE_RESOURCE, false)) {
+           String resource_type = PropertyUtil.getScalarValue(node.getProperties().get("resource_type"));
+           if (resource_type.equals("namespaces")) {
+              kubeNS = node;
+           }
+        }
+
+        if (kubeNS != null) {
+           try {
+               ObjectNode spec = (ObjectNode) mapper.readTree(PropertyUtil.getScalarValue(kubeNS.getProperties().get("resource_spec")));
+               zone = spec.with("metadata").with("labels").get("ns-zone-de-sensibilite").textValue();
+           } catch(Exception e) {
+               log.info("Can't find ns-zone-de-sensibilite");
+           }
+        } else {
+           log.info ("No namespace");
+        }
+
+        if (StringUtils.isBlank(zone)) {
+           log.info ("Zone not set, can not perform");
+           return;
+        }
+        log.debug ("Zone: {}", zone);
+        if (deployedTopology != null) {
+           /* manage IAM clients */
+           for (NodeTemplate node : TopologyNavigationUtil.getNodesOfType(deployedTopology, IAM_TYPE, false)) {
+              log.debug ("Processing node {}", node.getName());
+              Capability endpoint = safe(node.getCapabilities()).get("iam_endpoint");
+              if (endpoint == null) {
+                 log.warn ("No iam_endpoint for {}, skip it", node.getName());
+                 continue;
+              }
+              String clientId = PropertyUtil.getScalarValue(endpoint.getProperties().get("clientId"));
+              if (StringUtils.isBlank(clientId)) {
+                 log.warn ("No client id for {}, skip it", node.getName());
+                 continue;
+              }
+              disableClient (clientId, zone);
+           }
+        } else {
+            log.error("Deployed topology is no longer available.");
+        }
+
     }
 
     private void doProcess(Topology topology, FlowExecutionContext context) {
@@ -335,7 +445,11 @@ public class IAMManagerModifier extends TopologyModifierSupport {
        {
           return "";
        }
-       updateClientRoles (token, clientId, props.get("roles"), zone);
+       if (!client.isEnabled()) {
+          enableClient(token, client, zone);
+       }
+
+       updateClientRoles (token, client.getId(), props.get("roles"), zone);
 
        return getSecret(token, client.getId(), zone);
     }
@@ -469,6 +583,57 @@ public class IAMManagerModifier extends TopologyModifierSupport {
        String result = this.<Role, String>sendRequest (token, url, HttpMethod.POST, role, String.class, zone, true, error);
        if (error.length()!=0) {
           log.error ("Cannot create role {} for client {}", role.getName(), clientId);
+       }
+    }
+
+    /**
+     * enable client
+     **/
+    private void enableClient (Token token, Client client, String zone) {
+       String baseUrl = portalConfiguration.getParameter (zone, "iamApiUrl");
+       String realm = portalConfiguration.getParameter (zone, "realm");
+
+       String url = baseUrl + "/auth/admin/realms/" + realm + "/clients/" + client.getId();
+
+       StringBuffer error = new StringBuffer();
+       client.setEnabled(true);
+       String result = this.<Client, String>sendRequest (token, url, HttpMethod.PUT, client, String.class, zone, true, error);
+       if (error.length()==0) {
+          log.debug ("Client {} enabled", client.getClientId());
+       } else {
+          log.error ("Cannot enable client {}", client.getClientId());
+       }
+    }
+
+    /**
+     * disable client
+     **/
+    private void disableClient (String clientId, String zone) {
+       Token token = getToken(zone);
+
+       if ((token == null) || StringUtils.isBlank(token.getAccessToken())) {
+          log.error ("No token, cannot perform");
+          return;
+       }
+
+       Client client = getClient(token, clientId, zone);
+       if (client == null) {
+          log.error ("Cannot find client {}", clientId);
+          return;
+       }
+
+       String baseUrl = portalConfiguration.getParameter (zone, "iamApiUrl");
+       String realm = portalConfiguration.getParameter (zone, "realm");
+
+       String url = baseUrl + "/auth/admin/realms/" + realm + "/clients/" + client.getId();
+
+       StringBuffer error = new StringBuffer();
+       client.setEnabled(false);
+       String result = this.<Client, String>sendRequest (token, url, HttpMethod.PUT, client, String.class, zone, true, error);
+       if (error.length()==0) {
+          log.debug ("Client {} disabled", client.getClientId());
+       } else {
+          log.error ("Cannot disable client {}", clientId);
        }
     }
 
