@@ -275,6 +275,9 @@ public class PortalPublisherModifier extends TopologyModifierSupport {
            data.setUrl(url);
            // data.setUpstreamUrl(upstreamUrl);
            data.setZone(zone);
+           if (consulConfiguration.isTags()) {
+              data.setTags (new String[0]);
+           }
 
            try {
               setNodePropertyPathValue(null,topology,csnode,"data", new ScalarPropertyValue(mapper.writeValueAsString(data)));
@@ -383,5 +386,6 @@ public class PortalPublisherModifier extends TopologyModifierSupport {
         private String url;
         private String upstreamUrl;
         private String zone;
+        private String[] tags;
     }
 }
