@@ -75,7 +75,8 @@ public class PortalPublisherModifier extends TopologyModifierSupport {
     private final ObjectMapper mapper = new ObjectMapper();
  
     /* conf parameters which may be per zone or for all zones */
-    private List<String> parameters = Stream.of ("iamBaseUrl", "smdUrl", "smdUser",
+    private List<String> parameters = Stream.of ("iamBaseUrl", "iamConfigUrl",
+                                       "smdUrl", "smdUser",
                                        "smdPassword", "portalClient",
                                        "portalBaseUrl",
                                        "replicaCount", "proxyBaseUrl",

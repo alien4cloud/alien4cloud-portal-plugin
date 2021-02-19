@@ -37,6 +37,10 @@ node_types:
         type: string
         description: |
           ZD (zone dependant), the base url of the IAM, for example https://iam.metier.artemis
+      iamConfigUrl:
+        type: string
+        description: |
+          ZD (zone dependant), the internal config url of the IAM, for example http://keycloak-http-svc.pf-acc--portail-zds1.svc.cluster.local:8080/auth/realms/artemis/.well-known/openid-configuration
       smdUrl:
         type: string
         description: |
@@ -146,6 +150,7 @@ node_types:
           inputs:
             kubeConfig: { get_property: [ SELF, kubeConfig ] }
             iamBaseUrl: { get_property: [SELF, iamBaseUrl] }
+            iamConfigUrl: { get_property: [SELF, iamConfigUrl] }
             smdUrl: { get_property: [SELF, smdUrl] }
             smdUser: { get_property: [SELF, smdUser] }
             smdPassword: { get_property: [SELF, smdPassword] }
