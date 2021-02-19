@@ -280,6 +280,11 @@ capability_types:
         description: |
           tab name in portal UI
         default: cas-usage
+      portletname:
+        type: string
+        required: true
+        description: |
+          service name in portal UI
       proxied_url:
         type: string
         required: false

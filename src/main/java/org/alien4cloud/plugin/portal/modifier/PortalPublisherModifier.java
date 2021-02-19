@@ -239,6 +239,7 @@ public class PortalPublisherModifier extends TopologyModifierSupport {
            String description = PropertyUtil.getScalarValue(safe(endpoint.getProperties()).get("description"));
            String locationOptions = PropertyUtil.getScalarValue(safe(endpoint.getProperties()).get("locationOptions"));
            String ingressOptions = PropertyUtil.getScalarValue(safe(endpoint.getProperties()).get("ingressOptions"));
+           String portletname = PropertyUtil.getScalarValue(safe(endpoint.getProperties()).get("portletname"));
 
            String url = portalConfiguration.getParameter (zone, "proxyBaseUrl") + url_path;
 
@@ -264,7 +265,7 @@ public class PortalPublisherModifier extends TopologyModifierSupport {
            /* data to be published into consul */
            ConsulData data = new ConsulData();
 
-           data.setName(description);
+           data.setName(portletname);
            data.setAdmin(Boolean.valueOf(PropertyUtil.getScalarValue(safe(endpoint.getProperties()).get("admin"))));
            data.setQualifiedName(qualifiedName);
            data.setDescription(description);
