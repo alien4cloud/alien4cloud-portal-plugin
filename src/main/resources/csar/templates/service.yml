@@ -12,6 +12,10 @@ spec:
       protocol: TCP
       name: tcp-8001
       targetPort: 8001
+    - port: 8002
+      protocol: TCP
+      name: tcp-8002
+      targetPort: 8002
   selector:
     app: rp-{{ uc_id }}
   type: ClusterIP

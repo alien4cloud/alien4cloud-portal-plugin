@@ -42,6 +42,7 @@ import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_T
 import org.alien4cloud.plugin.portal.configuration.*;
 import static org.alien4cloud.plugin.portal.PortalConstants.*;
 import static org.alien4cloud.plugin.portal.csar.Version.PORTALPLUGIN_CSAR_VERSION;
+import org.alien4cloud.plugin.portal.model.Token;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -66,17 +67,48 @@ public class PortalPublisherModifier extends TopologyModifierSupport {
     protected PortalPortalConfiguration portalConfiguration;
 
     @Resource
+    protected IAMManagerModifier iamManager;
+
+    @Resource
     private MetaPropertiesService metaPropertiesService;
 
     private final ObjectMapper mapper = new ObjectMapper();
  
-    private List<String> parameters = Stream.of ("iamBaseUrl", "smdUrl", "smdUser",
+    /* conf parameters which may be per zone or for all zones */
+    private List<String> parameters = Stream.of ("iamBaseUrl", "iamConfigUrl",
+                                       "smdUrl", "smdUser",
                                        "smdPassword", "portalClient",
-                                       "portalSecret", "portalBaseUrl",
+                                       "portalBaseUrl",
                                        "replicaCount", "proxyBaseUrl",
                                        "proxyHost", "dnsResolver",
                                        "zoneNamespace", "imageUrl",
-                                       "ingressClass").collect(Collectors.toList());
+                                       "ingressClass", "ssoCheck", "smdCheck",
+                                       "smdCacheEnable", "smdCacheTTL",
+                                       "proxyHostExternal").collect(Collectors.toList());
+
+    /* portal secrets per zone */
+    private Map<String,String> portalSecrets = new HashMap<String,String>();
+
+    /* get portal secret for one zone */
+    private String getPortalSecret(String zone) {
+        /* return secret if already got from keycloak */
+        String secret = portalSecrets.get(zone);
+        if (secret != null) {
+           return secret;
+        }
+        /* else get it from keycloak using a temporary token for client admin-cli */
+        Token initToken = iamManager.getToken (zone, "admin-cli", null);
+        if ((initToken == null) || StringUtils.isBlank(initToken.getAccessToken())) {
+           log.error ("No token, cannot perform");
+           return null;
+        }
+        log.debug ("Init token {} for zone {}", initToken.getAccessToken(), zone);
+        String clientId = portalConfiguration.getParameter(zone, "portalClient");
+        secret = iamManager.getSecretFromClientId (initToken, clientId, zone);
+        log.debug ("{} secret {} for zone {}", clientId, secret, zone);
+        portalSecrets.put (zone, secret);
+        return secret;
+    }
 
     @Override
     @ToscaContextual
@@ -207,6 +239,8 @@ public class PortalPublisherModifier extends TopologyModifierSupport {
            String url_path = PropertyUtil.getScalarValue(safe(endpoint.getProperties()).get("url_path"));
            String description = PropertyUtil.getScalarValue(safe(endpoint.getProperties()).get("description"));
            String locationOptions = PropertyUtil.getScalarValue(safe(endpoint.getProperties()).get("locationOptions"));
+           String ingressOptions = PropertyUtil.getScalarValue(safe(endpoint.getProperties()).get("ingressOptions"));
+           String portletname = PropertyUtil.getScalarValue(safe(endpoint.getProperties()).get("portletname"));
 
            String url = portalConfiguration.getParameter (zone, "proxyBaseUrl") + url_path;
 
@@ -232,7 +266,7 @@ public class PortalPublisherModifier extends TopologyModifierSupport {
            /* data to be published into consul */
            ConsulData data = new ConsulData();
 
-           data.setName(description);
+           data.setName(portletname);
            data.setAdmin(Boolean.valueOf(PropertyUtil.getScalarValue(safe(endpoint.getProperties()).get("admin"))));
            data.setQualifiedName(qualifiedName);
            data.setDescription(description);
@@ -243,6 +277,9 @@ public class PortalPublisherModifier extends TopologyModifierSupport {
            data.setUrl(url);
            // data.setUpstreamUrl(upstreamUrl);
            data.setZone(zone);
+           if (consulConfiguration.isTags()) {
+              data.setTags (new String[0]);
+           }
 
            try {
               setNodePropertyPathValue(null,topology,csnode,"data", new ScalarPropertyValue(mapper.writeValueAsString(data)));
@@ -283,6 +320,10 @@ public class PortalPublisherModifier extends TopologyModifierSupport {
            for (String param : parameters) {
               setNodePropertyPathValue(null,topology,rpnode,param,new ScalarPropertyValue(portalConfiguration.getParameter(zone,param))); 
            }
+           String portalSecret = getPortalSecret(zone);
+           if (!StringUtils.isBlank(portalSecret)) {
+              setNodePropertyPathValue(null,topology,rpnode,"portalSecret",new ScalarPropertyValue(portalSecret)); 
+           }
 
            /* set UD properties */ 
            if (!StringUtils.isBlank(url_path)) {
@@ -297,6 +338,10 @@ public class PortalPublisherModifier extends TopologyModifierSupport {
            if (!StringUtils.isBlank(locationOptions)) {
               setNodePropertyPathValue(null,topology,rpnode,"locationOptions", new ScalarPropertyValue(locationOptions));
            }
+           if (!StringUtils.isBlank(ingressOptions)) {
+              setNodePropertyPathValue(null,topology,rpnode,"ingressOptions", new ScalarPropertyValue(ingressOptions));
+           }
+           setNodePropertyPathValue(null,topology,rpnode,"iamRole", new ScalarPropertyValue(qualifiedName + "_casusage_role"));
 
            /* add relationship on target node so as to be run after the node is deployed */
            addRelationshipTemplate (null, topology, rpnode, kubeDRnode.getName(), NormativeRelationshipConstants.DEPENDS_ON,
@@ -343,5 +388,6 @@ public class PortalPublisherModifier extends TopologyModifierSupport {
         private String url;
         private String upstreamUrl;
         private String zone;
+        private String[] tags;
     }
 }

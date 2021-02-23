@@ -50,6 +50,9 @@
     - name: Create site configMap
       shell: "kubectl --kubeconfig {{ kubeconfig_file.path }} -n {{ zoneNamespace }} create configmap rp-{{ uc_id }}-site-cm --from-file={{ temp_dir.path }}/site.conf"
 
+    - name: Create app configMap
+      shell: "kubectl --kubeconfig {{ kubeconfig_file.path }} -n {{ zoneNamespace }} create configmap rp-{{ uc_id }}-app-cm --from-file={{ temp_dir.path }}/app.conf"
+
     # - name: Create RP Deployment
     #   k8s:
     #     state: present

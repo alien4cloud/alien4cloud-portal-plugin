@@ -21,7 +21,7 @@ spec:
         runAsUser: 500
         runAsGroup: 500
         fsGroup: 500
-{% if replicaCount > 1 %}
+{% if replicaCount|int > 1 %}
 # Add antiaffinity to avoid execution on the same compute.
       affinity:
         podAntiAffinity:
@@ -56,6 +56,7 @@ spec:
             periodSeconds: 60
           ports:
             - containerPort: 8001
+            - containerPort: 8002
           volumeMounts:
             - name: nginx
               mountPath: /usr/local/openresty/nginx/conf/nginx.conf
@@ -64,6 +65,8 @@ spec:
               mountPath: /usr/local/openresty/nginx/conf/env/
             - name: site
               mountPath: /usr/local/openresty/nginx/conf/sites-enabled/{{ uc_id }}/
+            - name: app
+              mountPath: /usr/local/openresty/nginx/conf/sites-enabled/8001-logout/
       #imagePullSecrets:
       #- name: nexus-registry
       # Load the configuration files OpenResty
@@ -77,3 +80,6 @@ spec:
         - name: site
           configMap:
             name: rp-{{ uc_id }}-site-cm
+        - name: app
+          configMap:
+            name: rp-{{ uc_id }}-app-cm

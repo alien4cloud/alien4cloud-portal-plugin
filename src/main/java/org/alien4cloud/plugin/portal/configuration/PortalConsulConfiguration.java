@@ -17,4 +17,7 @@ public class PortalConsulConfiguration {
     private String url;
     private String certificate;
     private String key;
+
+    private boolean tags = true;
+
 }

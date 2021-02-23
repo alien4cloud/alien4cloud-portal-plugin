@@ -37,6 +37,10 @@ node_types:
         type: string
         description: |
           ZD (zone dependant), the base url of the IAM, for example https://iam.metier.artemis
+      iamConfigUrl:
+        type: string
+        description: |
+          ZD (zone dependant), the internal config url of the IAM, for example http://keycloak-http-svc.pf-acc--portail-zds1.svc.cluster.local:8080/auth/realms/artemis/.well-known/openid-configuration
       smdUrl:
         type: string
         description: |
@@ -105,18 +109,48 @@ node_types:
       proxyHost:
         type: string
         description: |
-          ZD, the external proxy host name (for example: proxy.cd.artemis).
+          ZD, the proxy host name (for example: proxy.cd.artemis).
+      proxyHostExternal:
+        type: string
+        description: |
+          ZD, the external proxy host name (for example: proxy-zds1.dev.client).
       ingressClass:
         type: string
         required: false
         description: |
           ZD, the value of the annotation kubernetes.io/ingress.class (for example: nginx-cd).
+      iamRole:
+        type: string
+        description: |
+          UD, IAM role
+      ssoCheck:
+        type: boolean
+        description:
+          PD, parameter to enable or disable session check
+      smdCheck:
+        type: boolean
+        description:
+          PD, parameter to enable or disable PDS check
+      smdCacheEnable:
+        type: boolean
+        description:
+          PD, parameter to enable or disable SMD cache
+      smdCacheTTL:
+        type: integer
+        description:
+          PD, SMD cache TTL
+      ingressOptions:
+        type: string
+        description: |
+          UD, options to add to ingress
+        required: false
     interfaces:
       Standard:
         create:
           inputs:
             kubeConfig: { get_property: [ SELF, kubeConfig ] }
             iamBaseUrl: { get_property: [SELF, iamBaseUrl] }
+            iamConfigUrl: { get_property: [SELF, iamConfigUrl] }
             smdUrl: { get_property: [SELF, smdUrl] }
             smdUser: { get_property: [SELF, smdUser] }
             smdPassword: { get_property: [SELF, smdPassword] }
@@ -133,7 +167,14 @@ node_types:
             imageUrl: { get_property: [SELF, imageUrl] }
             contextPath: { get_property: [SELF, contextPath] }
             proxyHost: { get_property: [SELF, proxyHost] }
+            proxyHostExternal: { get_property: [SELF, proxyHostExternal] }
             ingressClass: { get_property: [SELF, ingressClass] }
+            iamRole: { get_property: [SELF, iamRole] }
+            ssoCheck: { get_property: [SELF, ssoCheck] }
+            smdCheck: { get_property: [SELF, smdCheck] }
+            smdCacheEnable: { get_property: [SELF, smdCacheEnable] }
+            smdCacheTTL: { get_property: [SELF, smdCacheTTL] }
+            ingressOptions: { get_property: [SELF, ingressOptions] }
           implementation: playbook/create.yml
         delete:
           inputs:
@@ -244,22 +285,77 @@ capability_types:
         description: |
           tab name in portal UI
         default: cas-usage
+      portletname:
+        type: string
+        required: true
+        description: |
+          service name in portal UI
       proxied_url:
         type: string
         required: false
         description: |
            proxied URL of the service
+      ingressOptions:
+        type: string
+        required: false
+        description: |
+          options to add to ingress
 
   org.alien4cloud.portalplugin.capabilities.IAMEndpoint:
     derived_from: tosca.capabilities.Root
     description: >
       An IAM endpoint
     properties:
+      rootUrl:
+        type: string
+        description: |
+          Root URL appended to relative URLs
+        required: false
+      adminUrl:
+        type: string
+        description: |
+          URL to the admin interface of the client
+        required: false
+      baseUrl:
+        type: string
+        description: |
+          Default URL to use when the auth server needs to redirect or link back to the client
+        required: false
+      accessType:
+        type: string
+        description: |
+          Access type
+        default: public
+        constraints:
+          valid_values: [ 'public', 'confidential' ]
+      validRedirectUris:
+        type: list
+        entry_schema:
+           type: string
+        description: |
+          Valid URI pattern a browser can redirect to after a successful login or logout
+        required: false
+        default: ['*']
+      webOrigins:
+        type: list
+        entry_schema: 
+           type: string
+        description: |
+          Allowed CORS origins
+        required: false
+        default: ['*']
+      roles:
+        type: list
+        entry_schema:
+           type:  org.alien4cloud.portalplugin.datatypes.ClientRole
+        description: |
+          Client roles
+        required: false
       clientId:
         type: string
         description: |
           IAM client ID
-        required: true
+        required: false
       clientSecret:
         type: string
         description: |
@@ -300,3 +396,16 @@ capability_types:
         description: |
           portal external base url
         required: false
+
+data_types:
+
+   org.alien4cloud.portalplugin.datatypes.ClientRole:
+      derived_from: tosca.datatypes.Root
+      properties:
+        name:
+          type: string   
+          description: role name
+        description:
+          type: string   
+          description: role description
+          required: false

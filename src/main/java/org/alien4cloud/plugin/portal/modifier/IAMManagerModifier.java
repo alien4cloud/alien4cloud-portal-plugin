@@ -1,6 +1,14 @@
 package org.alien4cloud.plugin.portal.modifier;
 
+import alien4cloud.deployment.DeploymentRuntimeStateService;
+import alien4cloud.deployment.DeploymentService;
 import alien4cloud.model.common.Tag;
+import alien4cloud.model.deployment.Deployment;
+import alien4cloud.model.deployment.DeploymentTopology;
+import alien4cloud.paas.IPaasEventListener;
+import alien4cloud.paas.IPaasEventService;
+import alien4cloud.paas.model.AbstractMonitorEvent;
+import alien4cloud.paas.model.PaaSDeploymentStatusMonitorEvent;
 import alien4cloud.paas.wf.validation.WorkflowValidator;
 import alien4cloud.tosca.context.ToscaContextual;
 import static alien4cloud.utils.AlienUtils.safe;
@@ -10,7 +18,9 @@ import org.alien4cloud.alm.deployment.configuration.flow.EnvironmentContext;
 import org.alien4cloud.alm.deployment.configuration.flow.FlowExecutionContext;
 import org.alien4cloud.alm.deployment.configuration.flow.TopologyModifierSupport;
 
+import org.alien4cloud.tosca.model.definitions.AbstractPropertyValue;
 import org.alien4cloud.tosca.model.definitions.ComplexPropertyValue;
+import org.alien4cloud.tosca.model.definitions.ListPropertyValue;
 import org.alien4cloud.tosca.model.definitions.ScalarPropertyValue;
 import org.alien4cloud.tosca.model.templates.Capability;
 import org.alien4cloud.tosca.model.templates.NodeTemplate;
@@ -18,8 +28,10 @@ import org.alien4cloud.tosca.model.templates.RelationshipTemplate;
 import org.alien4cloud.tosca.model.templates.Topology;
 import org.alien4cloud.tosca.utils.TopologyNavigationUtil;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+
 import org.apache.commons.lang.StringUtils;
-import org.springframework.stereotype.Component;
 
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -28,6 +40,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
+import org.springframework.stereotype.Component;
 import org.springframework.util.MultiValueMap;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.web.client.HttpClientErrorException;
@@ -40,6 +53,8 @@ import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
+import java.util.Arrays;
+import java.util.stream.Collectors;
 import javax.net.ssl.SSLContext;
 import org.apache.http.conn.ssl.NoopHostnameVerifier;
 import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
@@ -50,6 +65,7 @@ import org.apache.http.impl.client.HttpClients;
 import lombok.extern.slf4j.Slf4j;
 
 import static org.alien4cloud.plugin.kubernetes.modifier.KubernetesAdapterModifier.K8S_TYPES_KUBE_NAMESPACE;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_SIMPLE_RESOURCE;
 
 import org.alien4cloud.plugin.portal.configuration.PortalPortalConfiguration;
 import org.alien4cloud.plugin.portal.model.*;
@@ -62,16 +78,88 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import javax.annotation.PostConstruct;
+import javax.annotation.PreDestroy;
 import javax.annotation.Resource;
+import javax.inject.Inject;
 
 @Slf4j
 @Component("iam-manager")
 public class IAMManagerModifier extends TopologyModifierSupport {
 
+    @Inject
+    private IPaasEventService eventService;
+
+    @Inject
+    private DeploymentRuntimeStateService deploymentRuntimeStateService;
+
+    @Inject
+    private DeploymentService deploymentService;
+
     @Resource
     protected PortalPortalConfiguration portalConfiguration;
 
-    private Token token = null;
+    private final ObjectMapper mapper = new ObjectMapper();
+
+    /* tokens per zone */
+    private Map<String,Token> tokens = new HashMap<String,Token>();
+
+    /* A4C client secret per zone */
+    private Map<String,String> a4cClientSecrets = new HashMap<String,String>();
+
+    @PostConstruct
+    public void init() {
+        eventService.addListener(listener);
+    }
+
+    @PreDestroy
+    public void term() {
+        eventService.removeListener(listener);
+    }
+
+    IPaasEventListener listener = new IPaasEventListener() {
+        @Override
+        public void eventHappened(AbstractMonitorEvent event) {
+             handleEvent((PaaSDeploymentStatusMonitorEvent) event);
+        }
+
+        @Override
+        public boolean canHandle(AbstractMonitorEvent event) {
+            return (event instanceof PaaSDeploymentStatusMonitorEvent);
+        }
+    };
+
+    private void handleEvent(PaaSDeploymentStatusMonitorEvent inputEvent) {
+        Deployment deployment = deploymentService.get(inputEvent.getDeploymentId());
+
+        switch(inputEvent.getDeploymentStatus()) {
+            case UNDEPLOYED:
+                processUnDeployment (deployment);
+                break;
+            default:
+                return;
+        }
+    }
+    /* get A4C client secret for one zone */
+    private String getA4CClientSecret(String zone) {
+       /* return secret if already got from keycloak */
+       String secret = a4cClientSecrets.get(zone);
+       if (secret != null) {
+          return secret;
+       }
+       /* else get it from keycloak using a temporary token for client admin-cli */
+       Token initToken = getToken (zone, "admin-cli", null);
+       if ((initToken == null) || StringUtils.isBlank(initToken.getAccessToken())) {
+          log.error ("No token, cannot perform");
+          return null;
+       }
+       log.debug ("Init token {} for zone {}", initToken.getAccessToken(), zone);
+       String clientId = portalConfiguration.getParameter(zone, "clientId");
+       secret = getSecretFromClientId (initToken, clientId, zone);
+       log.debug ("{} secret {} for zone {}", clientId, secret, zone);
+       a4cClientSecrets.put (zone, secret);
+       return secret;
+    }
 
     @Override
     @ToscaContextual
@@ -86,6 +174,57 @@ public class IAMManagerModifier extends TopologyModifierSupport {
             WorkflowValidator.disableValidationThreadLocal.remove();
             log.debug("Finished processing topology " + topology.getId());
         }
+    }
+
+    private void processUnDeployment (Deployment deployment) {
+        log.info ("Processing undeployment " + deployment.getId());
+        DeploymentTopology deployedTopology = deploymentRuntimeStateService.getRuntimeTopology(deployment.getId());
+        String zone = null;
+
+        NodeTemplate kubeNS = null;
+        for (NodeTemplate node : TopologyNavigationUtil.getNodesOfType(deployedTopology, K8S_TYPES_SIMPLE_RESOURCE, false)) {
+           String resource_type = PropertyUtil.getScalarValue(node.getProperties().get("resource_type"));
+           if (resource_type.equals("namespaces")) {
+              kubeNS = node;
+           }
+        }
+
+        if (kubeNS != null) {
+           try {
+               ObjectNode spec = (ObjectNode) mapper.readTree(PropertyUtil.getScalarValue(kubeNS.getProperties().get("resource_spec")));
+               zone = spec.with("metadata").with("labels").get("ns-zone-de-sensibilite").textValue();
+           } catch(Exception e) {
+               log.info("Can't find ns-zone-de-sensibilite");
+           }
+        } else {
+           log.info ("No namespace");
+        }
+
+        if (StringUtils.isBlank(zone)) {
+           log.info ("Zone not set, can not perform");
+           return;
+        }
+        log.debug ("Zone: {}", zone);
+        if (deployedTopology != null) {
+           /* manage IAM clients */
+           for (NodeTemplate node : TopologyNavigationUtil.getNodesOfType(deployedTopology, IAM_TYPE, false)) {
+              log.debug ("Processing node {}", node.getName());
+              Capability endpoint = safe(node.getCapabilities()).get("iam_endpoint");
+              if (endpoint == null) {
+                 log.warn ("No iam_endpoint for {}, skip it", node.getName());
+                 continue;
+              }
+              String clientId = PropertyUtil.getScalarValue(endpoint.getProperties().get("clientId"));
+              if (StringUtils.isBlank(clientId)) {
+                 log.warn ("No client id for {}, skip it", node.getName());
+                 continue;
+              }
+              disableClient (clientId, zone);
+           }
+        } else {
+            log.error("Deployed topology is no longer available.");
+        }
+
     }
 
     private void doProcess(Topology topology, FlowExecutionContext context) {
@@ -192,8 +331,13 @@ public class IAMManagerModifier extends TopologyModifierSupport {
            endpoint.getProperties().put("portalExternalUrl", new ScalarPropertyValue(portalConfiguration.getParameter(zone, "portalExternalUrl")));
 
            String clientId = PropertyUtil.getScalarValue(endpoint.getProperties().get("clientId"));
+           if (StringUtils.isBlank(clientId)) {
+             clientId = "L_ACU_" + context.getEnvironmentContext().get().getApplication().getName();
+             endpoint.getProperties().put("clientId", new ScalarPropertyValue(clientId));
+             log.debug ("Generating clientId: {}", clientId);
+           }
 
-           String clientSecret = createClient (clientId, zone);
+           String clientSecret = createClient (clientId, endpoint.getProperties(), zone);
 
            if (clientSecret.equals("")) {
               context.log().warn("Can not get client secret for {}", clientId);
@@ -207,15 +351,15 @@ public class IAMManagerModifier extends TopologyModifierSupport {
      * create role in keycloak if it does not exist yet, return false if error 
      **/
     private boolean createRole (String qualifiedName, String tabname, String zone) {
-       getToken(zone);
+       Token token = getToken(zone);
 
        if ((token == null) || StringUtils.isBlank(token.getAccessToken())) {
           log.error ("No token, cannot perform");
           return false;
        }
 
-       if (!existRole(qualifiedName, zone)) {
-          return doCreateRole (qualifiedName, tabname, zone);
+       if (!existRole(token, qualifiedName, zone)) {
+          return doCreateRole (token, qualifiedName, tabname, zone);
        }
 
        return true;
@@ -224,13 +368,13 @@ public class IAMManagerModifier extends TopologyModifierSupport {
     /**
      * test whether a role exists or not
      **/
-    private boolean existRole (String name, String zone) {
+    private boolean existRole (Token token, String name, String zone) {
        String baseUrl = portalConfiguration.getParameter (zone, "iamApiUrl");
        String realm = portalConfiguration.getParameter (zone, "realm");
        String url = baseUrl + "/auth/admin/realms/" + realm + "/roles/" + name + "_casusage_role";
 
        StringBuffer error = new StringBuffer();
-       Role result = this.<Object, Role>sendRequest (url, HttpMethod.GET, null, Role.class, zone, true, error);
+       Role result = this.<Object, Role>sendRequest (token, url, HttpMethod.GET, null, Role.class, zone, true, error);
        if (error.length()==0) {
           log.debug ("Role {} found", name);
           return true;
@@ -243,7 +387,7 @@ public class IAMManagerModifier extends TopologyModifierSupport {
     /**
      * create role, return false if error
      **/
-    private boolean doCreateRole(String name, String tabname, String zone) {
+    private boolean doCreateRole(Token token, String name, String tabname, String zone) {
        String baseUrl = portalConfiguration.getParameter (zone, "iamApiUrl");
        String realm = portalConfiguration.getParameter (zone, "realm");
        String url = baseUrl + "/auth/admin/realms/" + realm + "/roles";
@@ -260,7 +404,7 @@ public class IAMManagerModifier extends TopologyModifierSupport {
 
        /* create role */
        StringBuffer error = new StringBuffer();
-       String result = this.<Role, String>sendRequest (url, HttpMethod.POST, role, String.class, zone, true, error);
+       String result = this.<Role, String>sendRequest (token, url, HttpMethod.POST, role, String.class, zone, true, error);
        if (error.length()==0) {
           log.debug ("Role {} created", name);
        } else {
@@ -271,7 +415,7 @@ public class IAMManagerModifier extends TopologyModifierSupport {
        /* update role (to set tabname) */
        error = new StringBuffer();
        url = url + "/" + name;
-       result = this.<Role, String>sendRequest (url, HttpMethod.PUT, role, String.class, zone, true, error);
+       result = this.<Role, String>sendRequest (token, url, HttpMethod.PUT, role, String.class, zone, true, error);
        if (error.length()==0) {
           log.debug ("Role {} updated", name);
        } else {
@@ -284,36 +428,42 @@ public class IAMManagerModifier extends TopologyModifierSupport {
     /**
      * create client in keycloak if it does not exist yet, return client secret 
      **/
-    private String createClient (String clientId, String zone) {
-       getToken(zone);
+    private String createClient (String clientId, Map<String, AbstractPropertyValue> props, String zone) {
+       Token token = getToken(zone);
 
        if ((token == null) || StringUtils.isBlank(token.getAccessToken())) {
           log.error ("No token, cannot perform");
           return "";
        }
 
-       Client client = getClient(clientId, zone);
+       Client client = getClient(token, clientId, zone);
        if (client == null) {
-          doCreateClient(clientId, zone);
-          client = getClient(clientId, zone);
+          doCreateClient(token, clientId, props, zone);
+          client = getClient(token, clientId, zone);
        }
        if (client == null)
        {
           return "";
        }
-       return getSecret(client.getId(), zone);
+       if (!client.isEnabled()) {
+          enableClient(token, client, zone);
+       }
+
+       updateClientRoles (token, client.getId(), props.get("roles"), zone);
+
+       return getSecret(token, client.getId(), zone);
     }
 
     /**
      * get a client, return null if not found
      **/
-    private Client getClient (String clientId, String zone) {
+    private Client getClient (Token token, String clientId, String zone) {
        String baseUrl = portalConfiguration.getParameter (zone, "iamApiUrl");
        String realm = portalConfiguration.getParameter (zone, "realm");
        String url = baseUrl + "/auth/admin/realms/" + realm + "/clients?clientId=" + clientId;
 
        StringBuffer error = new StringBuffer();
-       Client[] result = this.<Object, Client[]>sendRequest (url, HttpMethod.GET, null, Client[].class, zone, true, error);
+       Client[] result = this.<Object, Client[]>sendRequest (token, url, HttpMethod.GET, null, Client[].class, zone, true, error);
        if ((error.length()==0) && (result.length > 0)) {
           log.debug ("Client {} found", clientId);
           return result[0];
@@ -326,19 +476,35 @@ public class IAMManagerModifier extends TopologyModifierSupport {
     /**
      * create client
      **/
-    private void doCreateClient(String clientId, String zone) {
+    private void doCreateClient(Token token, String clientId, Map<String, AbstractPropertyValue> props, String zone) {
        String baseUrl = portalConfiguration.getParameter (zone, "iamApiUrl");
        String realm = portalConfiguration.getParameter (zone, "realm");
        String url = baseUrl + "/auth/admin/realms/" + realm + "/clients";
        Client client = new Client();
        client.setClientId(clientId);
-       ArrayList<String> star = new ArrayList<String>();
-       star.add("*");
-       client.setRedirectUris(star);
-       client.setWebOrigins(star);
+       client.setEnabled(true);
+       client.setRootUrl(PropertyUtil.getScalarValue(props.get("rootUrl")));
+       client.setBaseUrl(PropertyUtil.getScalarValue(props.get("baseUrl")));
+       client.setAdminUrl(PropertyUtil.getScalarValue(props.get("adminUrl")));
+       String accessType = PropertyUtil.getScalarValue(props.get("accessType"));
+       if ((accessType == null) || accessType.equals("public")) {
+          client.setPublicClient(true);
+       } else {
+          client.setPublicClient(false);
+       }
+       List<Object> oRedirs = ((ListPropertyValue)props.get("validRedirectUris")).getValue();
+       List<String> sRedirs = oRedirs.stream()
+                                     .map(object -> (String)object)
+                                     .collect(Collectors.toList());
+       client.setRedirectUris(sRedirs);
+       List<Object> oWebOs = ((ListPropertyValue)props.get("webOrigins")).getValue();
+       List<String> sWebOs = oWebOs.stream()
+                                     .map(object -> (String)object)
+                                     .collect(Collectors.toList());
+       client.setWebOrigins(sWebOs);
 
        StringBuffer error = new StringBuffer();
-       String result = this.<Client,String>sendRequest (url, HttpMethod.POST, client, String.class, zone, true, error);
+       String result = this.<Client,String>sendRequest (token, url, HttpMethod.POST, client, String.class, zone, true, error);
        if (error.length()==0) {
           log.debug ("Client {} created", clientId);
        } else {
@@ -347,15 +513,152 @@ public class IAMManagerModifier extends TopologyModifierSupport {
     }
 
     /**
+     * Update client roles
+     **/
+    private void updateClientRoles (Token token, String clientId, AbstractPropertyValue rolePV, String zone) {
+       String baseUrl = portalConfiguration.getParameter (zone, "iamApiUrl");
+       String realm = portalConfiguration.getParameter (zone, "realm");
+
+       /* get existing roles */
+       String url = baseUrl + "/auth/admin/realms/" + realm + "/clients/" + clientId + "/roles";
+
+       StringBuffer error = new StringBuffer();
+       Role[] existingRoles = this.<Object, Role[]>sendRequest (token, url, HttpMethod.GET, null, Role[].class, zone, true, error);
+       if (error.length()!=0) {
+          log.debug ("Cannot get roles for client {}", clientId);
+          return;
+       }
+       List<Role> existingRolesList = Arrays.asList(existingRoles);
+
+       List<Object> oRoles = null;
+       if (rolePV != null) {
+          oRoles = ((ListPropertyValue)rolePV).getValue();
+       }
+       List<Role> newRoles = safe(oRoles).stream()
+                                   .map(object -> new Role((String)((Map)object).get("name"), (String)((Map)object).get("description"), null))
+                                   .collect(Collectors.toList());
+
+       /* delete obsolete roles */
+       safe(existingRolesList).forEach ((role) -> {
+          if (!newRoles.contains(role)) {
+             deleteClientRole (token, role.getName(), clientId, zone);
+          }
+       });
+       /* create new roles */
+       safe(newRoles).forEach ((role) -> {
+          if (!existingRolesList.contains(role)) {
+             createClientRole (token, role, clientId, zone);
+          }
+       });
+    }
+
+    /**
+     * Delete client role
+     **/
+    private void deleteClientRole (Token token, String role, String clientId, String zone) {
+       String baseUrl = portalConfiguration.getParameter (zone, "iamApiUrl");
+       String realm = portalConfiguration.getParameter (zone, "realm");
+
+       String url = baseUrl + "/auth/admin/realms/" + realm + "/clients/" + clientId + "/roles/" + role;
+       log.debug ("Deleting client role {}", role);
+
+       StringBuffer error = new StringBuffer();
+       String result = this.<Object, String>sendRequest (token, url, HttpMethod.DELETE, null, String.class, zone, true, error);
+       if (error.length()!=0) {
+          log.debug ("Cannot delete role {} for client {}", role, clientId);
+       }
+    }
+
+    /**
+     * Create client role
+     **/
+    private void createClientRole (Token token, Role role, String clientId, String zone) {
+       String baseUrl = portalConfiguration.getParameter (zone, "iamApiUrl");
+       String realm = portalConfiguration.getParameter (zone, "realm");
+
+       String url = baseUrl + "/auth/admin/realms/" + realm + "/clients/" + clientId + "/roles";
+       log.debug ("Creating client role {}", role.getName());
+
+       StringBuffer error = new StringBuffer();
+       String result = this.<Role, String>sendRequest (token, url, HttpMethod.POST, role, String.class, zone, true, error);
+       if (error.length()!=0) {
+          log.error ("Cannot create role {} for client {}", role.getName(), clientId);
+       }
+    }
+
+    /**
+     * enable client
+     **/
+    private void enableClient (Token token, Client client, String zone) {
+       String baseUrl = portalConfiguration.getParameter (zone, "iamApiUrl");
+       String realm = portalConfiguration.getParameter (zone, "realm");
+
+       String url = baseUrl + "/auth/admin/realms/" + realm + "/clients/" + client.getId();
+
+       StringBuffer error = new StringBuffer();
+       client.setEnabled(true);
+       String result = this.<Client, String>sendRequest (token, url, HttpMethod.PUT, client, String.class, zone, true, error);
+       if (error.length()==0) {
+          log.debug ("Client {} enabled", client.getClientId());
+       } else {
+          log.error ("Cannot enable client {}", client.getClientId());
+       }
+    }
+
+    /**
+     * disable client
+     **/
+    private void disableClient (String clientId, String zone) {
+       Token token = getToken(zone);
+
+       if ((token == null) || StringUtils.isBlank(token.getAccessToken())) {
+          log.error ("No token, cannot perform");
+          return;
+       }
+
+       Client client = getClient(token, clientId, zone);
+       if (client == null) {
+          log.error ("Cannot find client {}", clientId);
+          return;
+       }
+
+       String baseUrl = portalConfiguration.getParameter (zone, "iamApiUrl");
+       String realm = portalConfiguration.getParameter (zone, "realm");
+
+       String url = baseUrl + "/auth/admin/realms/" + realm + "/clients/" + client.getId();
+
+       StringBuffer error = new StringBuffer();
+       client.setEnabled(false);
+       String result = this.<Client, String>sendRequest (token, url, HttpMethod.PUT, client, String.class, zone, true, error);
+       if (error.length()==0) {
+          log.debug ("Client {} disabled", client.getClientId());
+       } else {
+          log.error ("Cannot disable client {}", clientId);
+       }
+    }
+
+    /**
+     * get client secret for given client 
+     **/
+    public String getSecretFromClientId (Token token, String clientName, String zone) {
+       Client client = getClient (token, clientName, zone);
+       if (client == null) {
+          log.error ("Can not find client {}", clientName);
+          return null;
+       }
+       return getSecret (token, client.getId(), zone);
+    }
+
+    /**
      * get client secret
      **/
-    private String getSecret (String clientId, String zone) {
+    private String getSecret (Token token, String clientId, String zone) {
        String baseUrl = portalConfiguration.getParameter (zone, "iamApiUrl");
        String realm = portalConfiguration.getParameter (zone, "realm");
        String url = baseUrl + "/auth/admin/realms/" + realm + "/clients/" + clientId + "/client-secret";
 
        StringBuffer error = new StringBuffer();
-       Secret result = this.<Object, Secret>sendRequest (url, HttpMethod.GET, null, Secret.class, zone, true, error);
+       Secret result = this.<Object, Secret>sendRequest (token, url, HttpMethod.GET, null, Secret.class, zone, true, error);
        if (error.length()==0) {
           log.debug ("secret: {}", result.getValue());
           return result.getValue();
@@ -374,7 +677,7 @@ public class IAMManagerModifier extends TopologyModifierSupport {
      * in case of error err buffer contains error message
      * if error 401 is received, retries once to get a token
      **/
-    private <T,R> R sendRequest (String url, HttpMethod method, T data, Class clazz, String zone, boolean first, StringBuffer err) {
+    private <T,R> R sendRequest (Token token, String url, HttpMethod method, T data, Class clazz, String zone, boolean first, StringBuffer err) {
        RestTemplate restTemplate = null;
        try {
           restTemplate = getRestTemplate();
@@ -399,10 +702,11 @@ public class IAMManagerModifier extends TopologyModifierSupport {
           if ((he.getStatusCode() == HttpStatus.UNAUTHORIZED) && first)
           {
              log.debug ("Token expired, trying again...");
-             token = null;
-             getToken(zone);
+             tokens.remove(zone);
+             token = getToken(zone);
              if ((token != null) && !StringUtils.isBlank(token.getAccessToken())) {
-                return sendRequest (url, method, data, clazz, zone, false, err);
+                tokens.put (zone, token);
+                return sendRequest (token, url, method, data, clazz, zone, false, err);
              }
           }
           log.warn ("{} {} => HTTP error {}", method, url, he.getStatusCode());
@@ -419,21 +723,31 @@ public class IAMManagerModifier extends TopologyModifierSupport {
 
 
     /**
-     * get keycloak token for further use
+     * get keycloak token for A4C client id for one zone
      */
-    private void getToken(String zone) {
+    private Token getToken(String zone) {
+       Token token = tokens.get(zone);
        if ((token != null) && !StringUtils.isBlank(token.getAccessToken())) {
-          return;
+          return token;
        }
+       token = getToken (zone, portalConfiguration.getParameter (zone, "clientId"), getA4CClientSecret(zone));
+       tokens.put(zone, token);
+       return token;
+    }
 
+    /**
+     * get keycloak token for given client id for one zone
+     */
+    public Token getToken (String zone, String clientId, String secret) {
        RestTemplate restTemplate = null;
        try {
           restTemplate = getRestTemplate();
        } catch (Exception e) {
           log.error ("Error creating restTemplate: {}", e.getMessage());
-          return;
+          return null;
        }
 
+       Token token = null;
        String baseUrl = portalConfiguration.getParameter (zone, "iamApiUrl");
        String openidUri = portalConfiguration.getParameter (zone, "openidUri");
 
@@ -442,8 +756,7 @@ public class IAMManagerModifier extends TopologyModifierSupport {
        MultiValueMap<String, String> map= new LinkedMultiValueMap<String, String>();
        map.add("username", portalConfiguration.getParameter (zone, "user"));
        map.add("password", portalConfiguration.getParameter (zone, "password"));
-       map.add("client_id", portalConfiguration.getParameter (zone, "clientId"));
-       String secret = portalConfiguration.getParameter (zone, "clientSecret");
+       map.add("client_id", clientId);
        if ((secret != null) && !secret.trim().equals("")) {
           map.add("client_secret", secret);
        }
@@ -460,6 +773,7 @@ public class IAMManagerModifier extends TopologyModifierSupport {
        } catch (ResourceAccessException re) {
           log.error  ("Cannot get token: {}", re.getMessage());
        }
+       return token;
     }
 
     /**
