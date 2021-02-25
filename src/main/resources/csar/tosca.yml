@@ -302,7 +302,7 @@ capability_types:
           options to add to ingress
 
   org.alien4cloud.portalplugin.capabilities.IAMEndpoint:
-    derived_from: tosca.capabilities.Root
+    derived_from: tosca.capabilities.Endpoint
     description: >
       An IAM endpoint
     properties:
@@ -385,6 +385,11 @@ capability_types:
         type: string
         description: |
           proxy base URL
+        required: false
+      proxyHostBase:
+        type: string
+        description: |
+          proxy base host          
         required: false
       proxyHost:
         type: string

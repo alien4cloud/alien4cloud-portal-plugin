@@ -327,6 +327,7 @@ public class IAMManagerModifier extends TopologyModifierSupport {
            endpoint.getProperties().put("iamExternalUrl", new ScalarPropertyValue(portalConfiguration.getParameter(zone, "iamExternalUrl")));
            endpoint.getProperties().put("openidUri", new ScalarPropertyValue(portalConfiguration.getParameter(zone, "openidUri")));
            endpoint.getProperties().put("proxyBaseUrl", new ScalarPropertyValue(portalConfiguration.getParameter(zone, "proxyBaseUrl")));
+           endpoint.getProperties().put("proxyHostBase", new ScalarPropertyValue(portalConfiguration.getParameter(zone, "proxyHostBase")));
            endpoint.getProperties().put("proxyHost", new ScalarPropertyValue(portalConfiguration.getParameter(zone, "proxyHost")));
            endpoint.getProperties().put("portalExternalUrl", new ScalarPropertyValue(portalConfiguration.getParameter(zone, "portalExternalUrl")));
 
