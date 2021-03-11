@@ -82,6 +82,10 @@ node_types:
         type: string
         description: |
           ZD, the base URL of the proxy (ex. https://proxy.metier.artemis). Combined to the contextPath will give the full external URL to access the target.
+      proxyHostBase:
+        type: string
+        description: |
+          ZD, proxy base host          
 #      proxyBaseRedirectRegexp:
 #        type: string
 #        description: |
@@ -106,6 +110,10 @@ node_types:
         type: string
         description: |
           UD, the context path to access the target service (ex: /UL_Pilo0_IHM/).
+      cuContextPath:
+        type: string
+        description: |
+          UD+, the context path to access the target service, inside the UseCase
       proxyHost:
         type: string
         description: |
@@ -161,10 +169,12 @@ node_types:
             locationOptions: { get_property: [SELF, locationOptions] }
             serviceUpstreamUrl: { get_property: [SELF, serviceUpstreamUrl] }
             proxyBaseUrl: { get_property: [SELF, proxyBaseUrl] }
+            proxyHostBase: { get_property: [SELF, proxyHostBase] }
             dnsResolver: { get_property: [SELF, dnsResolver] }
             zoneNamespace: { get_property: [SELF, zoneNamespace] }
             uc_id: { get_property: [SELF, uc_id] }
             imageUrl: { get_property: [SELF, imageUrl] }
+            cuContextPath: { get_property: [SELF, cuContextPath] }
             contextPath: { get_property: [SELF, contextPath] }
             proxyHost: { get_property: [SELF, proxyHost] }
             proxyHostExternal: { get_property: [SELF, proxyHostExternal] }
@@ -300,6 +310,12 @@ capability_types:
         required: false
         description: |
           options to add to ingress
+      cuContextPath:
+        type: boolean
+        required: true
+        description: |
+          context path present in CU
+        default: true
 
   org.alien4cloud.portalplugin.capabilities.IAMEndpoint:
     derived_from: tosca.capabilities.Endpoint

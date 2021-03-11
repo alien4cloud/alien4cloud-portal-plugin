@@ -78,7 +78,7 @@ public class PortalPublisherModifier extends TopologyModifierSupport {
     private List<String> parameters = Stream.of ("iamBaseUrl", "iamConfigUrl",
                                        "smdUrl", "smdUser",
                                        "smdPassword", "portalClient",
-                                       "portalBaseUrl",
+                                       "portalBaseUrl", "proxyHostBase",
                                        "replicaCount", "proxyBaseUrl",
                                        "proxyHost", "dnsResolver",
                                        "zoneNamespace", "imageUrl",
@@ -241,6 +241,7 @@ public class PortalPublisherModifier extends TopologyModifierSupport {
            String locationOptions = PropertyUtil.getScalarValue(safe(endpoint.getProperties()).get("locationOptions"));
            String ingressOptions = PropertyUtil.getScalarValue(safe(endpoint.getProperties()).get("ingressOptions"));
            String portletname = PropertyUtil.getScalarValue(safe(endpoint.getProperties()).get("portletname"));
+           String cuContextPath = PropertyUtil.getScalarValue(safe(endpoint.getProperties()).get("cuContextPath"));
 
            String url = portalConfiguration.getParameter (zone, "proxyBaseUrl") + url_path;
 
@@ -295,7 +296,7 @@ public class PortalPublisherModifier extends TopologyModifierSupport {
 
            /** look for associated deployment resource: 
             *  module is hosted on KubeDeployment
-            *  look for deploymlent resource associated with this KubeDeployment
+            *  look for deployment resource associated with this KubeDeployment
             **/
            NodeTemplate deployment = TopologyNavigationUtil.getImmediateHostTemplate(init_topology, module);
            NodeTemplate kubeDRnode = null;
@@ -342,6 +343,13 @@ public class PortalPublisherModifier extends TopologyModifierSupport {
               setNodePropertyPathValue(null,topology,rpnode,"ingressOptions", new ScalarPropertyValue(ingressOptions));
            }
            setNodePropertyPathValue(null,topology,rpnode,"iamRole", new ScalarPropertyValue(qualifiedName + "_casusage_role"));
+
+           boolean bCuContextPath = Boolean.valueOf(cuContextPath);
+           if (bCuContextPath) {
+              setNodePropertyPathValue(null,topology,rpnode,"cuContextPath", new ScalarPropertyValue("/"));
+           } else {
+              setNodePropertyPathValue(null,topology,rpnode,"cuContextPath", new ScalarPropertyValue(url_path));
+           }
 
            /* add relationship on target node so as to be run after the node is deployed */
            addRelationshipTemplate (null, topology, rpnode, kubeDRnode.getName(), NormativeRelationshipConstants.DEPENDS_ON,
