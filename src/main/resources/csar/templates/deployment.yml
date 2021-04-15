@@ -10,10 +10,16 @@ spec:
   selector:
     matchLabels:
       app: rp-{{ uc_id }}
+      pod-pf-role: rproxy-rp-{{ uc_id }}
+      expose-ingress: "true"
+      access-iam: "true"
   template:
     metadata:
       labels:
         app: rp-{{ uc_id }}
+        pod-pf-role: rproxy-rp-{{ uc_id }}
+        expose-ingress: "true"
+        access-iam: "true"
     spec:
       # Add Security Context for running container with artemis user instead of root user.
       # The artemis user (uid 500) is defined into the image.
