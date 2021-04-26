@@ -84,7 +84,7 @@ public class PortalPublisherModifier extends TopologyModifierSupport {
                                        "zoneNamespace", "imageUrl",
                                        "ingressClass", "ssoCheck", "smdCheck",
                                        "smdCacheEnable", "smdCacheTTL",
-                                       "proxyHostExternal").collect(Collectors.toList());
+                                       "proxyHostExternal","portalExternalUrl").collect(Collectors.toList());
 
     /* portal secrets per zone */
     private Map<String,String> portalSecrets = new HashMap<String,String>();

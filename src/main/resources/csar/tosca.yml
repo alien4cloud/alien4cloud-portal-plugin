@@ -65,6 +65,10 @@ node_types:
         type: string
         description: |
           ZD, the base URL for the portail (ex. https://portail.metier.artemis).
+      portalExternalUrl:
+        type: string
+        description: |
+          ZD, the external URL for the portail (ex. https://portail.metier.client).
       replicaCount:
         type: integer
         description:
@@ -165,6 +169,7 @@ node_types:
             portalClient: { get_property: [SELF, portalClient] }
             portalSecret: { get_property: [SELF, portalSecret] }
             portalBaseUrl: { get_property: [SELF, portalBaseUrl] }
+            portalExternalUrl: { get_property: [SELF, portalExternalUrl] }
             replicaCount: { get_property: [SELF, replicaCount] }
             locationOptions: { get_property: [SELF, locationOptions] }
             serviceUpstreamUrl: { get_property: [SELF, serviceUpstreamUrl] }
