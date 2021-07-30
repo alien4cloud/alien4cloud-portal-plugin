@@ -69,6 +69,7 @@ import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_T
 
 import org.alien4cloud.plugin.portal.configuration.PortalPortalConfiguration;
 import org.alien4cloud.plugin.portal.model.*;
+import static org.alien4cloud.plugin.portal.PortalConstants.API_SERVICE;
 import static org.alien4cloud.plugin.portal.PortalConstants.IAM_RELATION;
 import static org.alien4cloud.plugin.portal.PortalConstants.IAM_TYPE;
 import static org.alien4cloud.plugin.portal.PortalConstants.PROXIED_SERVICE;
@@ -251,67 +252,12 @@ public class IAMManagerModifier extends TopologyModifierSupport {
 
         Set<NodeTemplate> services = TopologyNavigationUtil.getNodesOfType(topology, PROXIED_SERVICE, true);
         for (NodeTemplate node : services) {
-           /* get url_path property from service endpoint */
-           Capability endpoint = safe(node.getCapabilities()).get("service_endpoint");
-           if (endpoint == null) {
-              log.warn ("No service_endpoint for {}, skip it", node.getName());
-              continue;
-           }
+           manageService (topology, context, node, zone, true);
+        }
 
-           /* set proxied_url property for services */
-           String url_path = PropertyUtil.getScalarValue(safe(endpoint.getProperties()).get("url_path"));
-           if (url_path == null) {
-              url_path = "";
-           }
-           String url = portalConfiguration.getParameter (zone, "proxyBaseUrl") + url_path;
-           endpoint.getProperties().put("proxied_url", new ScalarPropertyValue(url));
-
-           /*--- create IAM role ---*/
-
-           /* get module qualified name */
-           Set<RelationshipTemplate> rels = TopologyNavigationUtil.getTargetRelationships(node, "expose");
-           if (rels.size() == 0) {
-               log.warn ("No 'expose' relation for {}, skip it", node.getName());
-               continue;
-           }
-           RelationshipTemplate rel = rels.iterator().next();
-           NodeTemplate module = topology.getNodeTemplates().get(rel.getTarget());
-           String qualifiedName = "not_set";
-           List<Tag> tags = module.getTags();
-           for (Tag tag: safe(tags)) {
-              if (tag.getName().equals("qualifiedName")) {
-                 qualifiedName = tag.getValue();
-              }
-           }
-           if (qualifiedName.equals("not_set")) {
-              log.warn ("Cannot find qualified name for {}, skip it", module.getName());
-              continue;
-           }
-           log.debug("Module qualifiedName: {}", qualifiedName);
-
-           /* look for IAM node from module relations and set proxied_url */
-           Map<String, RelationshipTemplate> relationships = module.getRelationships();
-           for (String nrel : safe(relationships).keySet()) {
-              String reltype = relationships.get(nrel).getRequirementType();
-              if (reltype.equals(IAM_RELATION)) {
-                 NodeTemplate iamnode = safe(topology.getNodeTemplates()).get(relationships.get(nrel).getTarget());
-                 Capability iamendpoint = safe(iamnode.getCapabilities()).get("iam_endpoint");
-                 if (iamendpoint != null) {
-                    iamendpoint.getProperties().put("proxied_url", new ScalarPropertyValue(url));
-                 }
-              }
-           }
-
-           /* get tab name */
-           String tabname = PropertyUtil.getScalarValue(safe(endpoint.getProperties()).get("portalTabname"));
-           if (StringUtils.isBlank(tabname)) {
-              log.info ("Tab name not set for {}, using 'cas-usage'", node.getName());
-              tabname = "cas-usage";
-           }
-
-           if (!createRole (qualifiedName, tabname, zone)) {
-              context.log().warn("Can not create role {}_casusage_role", qualifiedName);
-           }
+        services = TopologyNavigationUtil.getNodesOfType(topology, API_SERVICE, true);
+        for (NodeTemplate node : services) {
+           manageService (topology, context, node, zone, false);
         }
 
         /* manage IAM clients */
@@ -348,6 +294,77 @@ public class IAMManagerModifier extends TopologyModifierSupport {
         }
     }
 
+    private void manageService (Topology topology, FlowExecutionContext context, NodeTemplate node, String zone, boolean ihm) {
+        Capability endpoint = safe(node.getCapabilities()).get("service_endpoint");
+        if (endpoint == null) {
+           log.warn ("No service_endpoint for {}, skip it", node.getName());
+           return;
+        }
+
+        String url = null;
+        if (ihm) {
+           /* set proxied_url property for services */
+           String url_path = PropertyUtil.getScalarValue(safe(endpoint.getProperties()).get("url_path"));
+           if (url_path == null) {
+              url_path = "";
+           }
+           url = portalConfiguration.getParameter (zone, "proxyBaseUrl") + url_path;
+           endpoint.getProperties().put("proxied_url", new ScalarPropertyValue(url));
+        }
+
+        /*--- create IAM role ---*/
+
+        /* get module qualified name */
+        Set<RelationshipTemplate> rels = TopologyNavigationUtil.getTargetRelationships(node, "expose");
+        if (rels.size() == 0) {
+            log.warn ("No 'expose' relation for {}, skip it", node.getName());
+            return;
+        }
+        RelationshipTemplate rel = rels.iterator().next();
+        NodeTemplate module = topology.getNodeTemplates().get(rel.getTarget());
+        String qualifiedName = "not_set";
+        List<Tag> tags = module.getTags();
+        for (Tag tag: safe(tags)) {
+           if (tag.getName().equals("qualifiedName")) {
+              qualifiedName = tag.getValue();
+           }
+        }
+        if (qualifiedName.equals("not_set")) {
+           log.warn ("Cannot find qualified name for {}, skip it", module.getName());
+           return;
+        }
+        log.debug("Module qualifiedName: {}", qualifiedName);
+
+        String tabname = null;
+        if (ihm) {
+           /* look for IAM node from module relations and set proxied_url */
+           Map<String, RelationshipTemplate> relationships = module.getRelationships();
+           for (String nrel : safe(relationships).keySet()) {
+              String reltype = relationships.get(nrel).getRequirementType();
+              if (reltype.equals(IAM_RELATION)) {
+                 NodeTemplate iamnode = safe(topology.getNodeTemplates()).get(relationships.get(nrel).getTarget());
+                 Capability iamendpoint = safe(iamnode.getCapabilities()).get("iam_endpoint");
+                 if (iamendpoint != null) {
+                    iamendpoint.getProperties().put("proxied_url", new ScalarPropertyValue(url));
+                 }
+              }
+           }
+
+           /* get tab name */
+           tabname = PropertyUtil.getScalarValue(safe(endpoint.getProperties()).get("portalTabname"));
+           if (StringUtils.isBlank(tabname)) {
+              log.info ("Tab name not set for {}, using 'cas-usage'", node.getName());
+              tabname = "cas-usage";
+           }
+        } else {
+           endpoint.getProperties().put("url_path", new ScalarPropertyValue("/" + qualifiedName + "." + node.getName()));
+           qualifiedName += "-" + node.getName();
+        }
+
+        if (!createRole (qualifiedName, tabname, zone)) {
+           context.log().warn("Can not create role {}_casusage_role", qualifiedName);
+        }
+     }
     /**
      * create role in keycloak if it does not exist yet, return false if error 
      **/
@@ -397,11 +414,13 @@ public class IAMManagerModifier extends TopologyModifierSupport {
        Role role = new Role();
        role.setName(name);
        role.setDescription ("Artemis role '" + name + "'");
-       ArrayList tabs = new ArrayList();
-       tabs.add(tabname);
-       HashMap<String,List<String>> attrs = new HashMap<String,List<String>>();
-       attrs.put ("tabname", tabs);
-       role.setAttributes(attrs);
+       if (tabname != null) {
+          ArrayList tabs = new ArrayList();
+          tabs.add(tabname);
+          HashMap<String,List<String>> attrs = new HashMap<String,List<String>>();
+          attrs.put ("tabname", tabs);
+          role.setAttributes(attrs);
+       }
 
        /* create role */
        StringBuffer error = new StringBuffer();
@@ -413,15 +432,17 @@ public class IAMManagerModifier extends TopologyModifierSupport {
           return false;
        }
 
-       /* update role (to set tabname) */
-       error = new StringBuffer();
-       url = url + "/" + name;
-       result = this.<Role, String>sendRequest (token, url, HttpMethod.PUT, role, String.class, zone, true, error);
-       if (error.length()==0) {
-          log.debug ("Role {} updated", name);
-       } else {
-          log.error ("Cannot update role {}", name);
-          return false;
+       if (tabname != null) {
+          /* update role (to set tabname) */
+          error = new StringBuffer();
+          url = url + "/" + name;
+          result = this.<Role, String>sendRequest (token, url, HttpMethod.PUT, role, String.class, zone, true, error);
+          if (error.length()==0) {
+             log.debug ("Role {} updated", name);
+          } else {
+             log.error ("Cannot update role {}", name);
+             return false;
+          }
        }
        return true;
     }

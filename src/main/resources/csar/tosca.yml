@@ -16,6 +16,14 @@ imports:
 
 node_types:
 
+  org.alien4cloud.portalplugin.types.KubeApiService:
+    derived_from: org.alien4cloud.kubernetes.api.types.KubeService
+    capabilities:
+      service_endpoint:
+        type: org.alien4cloud.portalplugin.capabilities.KubeApiServiceEndpoint
+        properties:
+          proxy_for: expose
+
   org.alien4cloud.portalplugin.types.KubeServiceProxied:
     derived_from: org.alien4cloud.kubernetes.api.types.KubeService
     capabilities:
@@ -261,6 +269,22 @@ node_types:
         type: org.alien4cloud.portalplugin.capabilities.IAMEndpoint
 
 capability_types:
+  org.alien4cloud.portalplugin.capabilities.KubeApiServiceEndpoint:
+    derived_from: org.alien4cloud.kubernetes.api.capabilities.KubeServiceEndpoint
+    description: >
+      An API endpoint
+    properties:
+      description:
+        type: string
+        required: false
+        description: |
+          service description
+      suburlspec:
+        type: string
+        required: true
+        description: |
+          URI to openAPI spec
+
   org.alien4cloud.portalplugin.capabilities.KubeServiceProxiedEndpoint:
     derived_from: org.alien4cloud.kubernetes.api.capabilities.KubeServiceEndpoint
     description: >

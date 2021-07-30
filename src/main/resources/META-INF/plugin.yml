@@ -6,6 +6,7 @@ description: >
 configuration_class: org.alien4cloud.plugin.portal.PluginConfiguration
 dependencies:
   - alien4cloud-kubernetes-plugin
+  - alien4cloud-yorc-provider
 component_descriptors:
   - bean_name: portal-publisher
     name: Portal Publisher
@@ -16,3 +17,7 @@ component_descriptors:
     name: IAM Manager
     description: >
       Modifier that manages interactions with IAM
+  - bean_name: apigw-publisher
+    name: API Gateway Publisher
+    description: >
+      Modifier that publishes an api to api gateway
