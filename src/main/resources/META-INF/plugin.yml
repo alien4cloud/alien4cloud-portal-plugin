@@ -17,7 +17,3 @@ component_descriptors:
     name: IAM Manager
     description: >
       Modifier that manages interactions with IAM
-  - bean_name: apigw-publisher
-    name: API Gateway Publisher
-    description: >
-      Modifier that publishes an api to api gateway

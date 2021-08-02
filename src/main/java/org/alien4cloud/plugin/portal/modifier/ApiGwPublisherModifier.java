@@ -9,13 +9,10 @@ import alien4cloud.paas.IPaasEventListener;
 import alien4cloud.paas.IPaasEventService;
 import alien4cloud.paas.model.AbstractMonitorEvent;
 import alien4cloud.paas.model.PaaSDeploymentStatusMonitorEvent;
-import alien4cloud.paas.wf.validation.WorkflowValidator;
 import alien4cloud.tosca.context.ToscaContext;
-import alien4cloud.tosca.context.ToscaContextual;
 import static alien4cloud.utils.AlienUtils.safe;
 import alien4cloud.utils.PropertyUtil;
 
-import org.alien4cloud.alm.deployment.configuration.flow.FlowExecutionContext;
 import org.alien4cloud.alm.deployment.configuration.flow.TopologyModifierSupport;
 
 import org.alien4cloud.tosca.model.definitions.AbstractPropertyValue;
@@ -75,7 +72,7 @@ import javax.net.ssl.SSLContext;
 
 @Slf4j
 @Component("apigw-publisher")
-public class ApiGwPublisherModifier extends TopologyModifierSupport {
+public class ApiGwPublisherModifier {
 
     @Resource
     protected PortalPortalConfiguration configuration;
@@ -115,55 +112,19 @@ public class ApiGwPublisherModifier extends TopologyModifierSupport {
         Deployment deployment = deploymentService.get(inputEvent.getDeploymentId());
 
         switch(inputEvent.getDeploymentStatus()) {
+            case DEPLOYED:
+                processDeployment (deployment, HttpMethod.POST);
+                break;
             case UNDEPLOYED:
-                processUnDeployment (deployment);
+                processDeployment (deployment, HttpMethod.DELETE);
                 break;
             default:
                 return;
         }
     }
 
-    @Override
-    @ToscaContextual
-    public void process(Topology topology, FlowExecutionContext context) {
-        log.info("Processing topology {}" ,topology.getId());
-        try {
-            WorkflowValidator.disableValidationThreadLocal.set(true);
-            processDeployment(topology, context);
-        } catch (Exception e) {
-            log.warn ("Couldn't process apigw publisher modifier", e);
-        } finally {
-            WorkflowValidator.disableValidationThreadLocal.remove();
-            log.debug("Finished processing topology " + topology.getId());
-        }
-    }
-
-    private void processDeployment (Topology topology, FlowExecutionContext context) {
-        String zone = null;
-        /* get zone from namespace resource */
-        NodeTemplate kubeNS = topology.getNodeTemplates().get((String)context.getExecutionCache().get(NAMESPACE_RESOURCE_NAME));
-        if (kubeNS != null) {
-           try {
-              ObjectNode spec = (ObjectNode) mapper.readTree(PropertyUtil.getScalarValue(kubeNS.getProperties().get("resource_spec")));
-              zone = spec.with("metadata").with("labels").get("ns-zone-de-sensibilite").textValue();
-           } catch(Exception e) {
-              log.info("Can't find ns-zone-de-sensibilite");
-           }
-        } else {
-           log.info ("No namespace resource");
-        }
-        if (StringUtils.isBlank(zone)) {
-           log.info ("Zone not set, can not perform");
-           return;
-        }
-
-        /* get initial topology */
-        Topology init_topology = (Topology)context.getExecutionCache().get(FlowExecutionContext.INITIAL_TOPOLOGY);
-        sendRequest(topology, init_topology, context, zone, HttpMethod.POST);
-    }
-
-    private void processUnDeployment (Deployment deployment) {
-        log.info ("Processing undeployment " + deployment.getId());
+    private void processDeployment (Deployment deployment, HttpMethod method) {
+        log.info ("Processing deployment " + deployment.getId());
         DeploymentTopology deployedTopology = deploymentRuntimeStateService.getRuntimeTopology(deployment.getId());
         if (deployedTopology == null) {
             log.error("Deployed topology is no longer available.");
@@ -196,7 +157,7 @@ public class ApiGwPublisherModifier extends TopologyModifierSupport {
 
         try {
            ToscaContext.init(deployedTopology.getDependencies());
-           sendRequest(deployedTopology, initialTopology, null, zone, HttpMethod.DELETE);
+           sendRequest(deployedTopology, initialTopology, zone, method);
         } catch (Exception e) {
             log.warn ("Couldn't process apigw publisher listener", e);
         } finally {
@@ -204,7 +165,7 @@ public class ApiGwPublisherModifier extends TopologyModifierSupport {
         }
     }
 
-    private void sendRequest (Topology topology, Topology init_topology, FlowExecutionContext context, String zone, HttpMethod method) {
+    private void sendRequest (Topology topology, Topology init_topology, String zone, HttpMethod method) {
         /* api service nodes */
         Set<NodeTemplate> services = TopologyNavigationUtil.getNodesOfType(init_topology, API_SERVICE, true);
 
@@ -255,11 +216,11 @@ public class ApiGwPublisherModifier extends TopologyModifierSupport {
            request.add(req);
         }
         if (!request.isEmpty()) {
-           sendRequest (configuration.getParameter (zone, "importApiUrl"), method, context, request);
+           sendRequest (configuration.getParameter (zone, "importApiUrl"), method, request);
         }
     }
 
-    private void sendRequest (String url, HttpMethod method, FlowExecutionContext context, List<ImportApiRequest> data) {
+    private void sendRequest (String url, HttpMethod method, List<ImportApiRequest> data) {
        RestTemplate restTemplate = null;
        try {
           restTemplate = getRestTemplate();
@@ -280,10 +241,7 @@ public class ApiGwPublisherModifier extends TopologyModifierSupport {
           try {
              ObjectNode response = (ObjectNode) mapper.readTree(result);
              String infos = response.get("Infos").textValue();
-             log.debug("Infos: {}", infos);
-             if (context != null) {
-                context.log().info(infos);
-             }
+             log.info("Infos: {}", infos);
              Iterator<String> fields = response.fieldNames();
              while (fields.hasNext()) {
                 String field = fields.next();
@@ -292,9 +250,6 @@ public class ApiGwPublisherModifier extends TopologyModifierSupport {
                    int status = api.get("Status").intValue();
                    log.debug ("API: {}, status: {}", field, status);
                    if (status != 200) {
-                      if (context != null) {
-                         context.log().warn("Status = {} for import API with URL {}", status, field);
-                      }
                       log.warn("Status = {} for {} {}", status, method, field);
                    }
                 }
