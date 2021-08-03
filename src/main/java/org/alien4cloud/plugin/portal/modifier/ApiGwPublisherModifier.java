@@ -2,6 +2,7 @@ package org.alien4cloud.plugin.portal.modifier;
 
 import alien4cloud.deployment.DeploymentRuntimeStateService;
 import alien4cloud.deployment.DeploymentService;
+import alien4cloud.events.BeforeDeploymentUndeployedEvent;
 import alien4cloud.model.common.Tag;
 import alien4cloud.model.deployment.Deployment;
 import alien4cloud.model.deployment.DeploymentTopology;
@@ -25,6 +26,7 @@ import org.alien4cloud.tosca.normative.constants.NormativeRelationshipConstants;
 import org.alien4cloud.tosca.utils.TopologyNavigationUtil;
 
 import org.apache.commons.lang.StringUtils;
+import org.springframework.context.ApplicationListener;
 import org.springframework.stereotype.Component;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
@@ -72,7 +74,7 @@ import javax.net.ssl.SSLContext;
 
 @Slf4j
 @Component("apigw-publisher")
-public class ApiGwPublisherModifier {
+public class ApiGwPublisherModifier implements ApplicationListener<BeforeDeploymentUndeployedEvent> {
 
     @Resource
     protected PortalPortalConfiguration configuration;
@@ -115,12 +117,15 @@ public class ApiGwPublisherModifier {
             case DEPLOYED:
                 processDeployment (deployment, HttpMethod.POST);
                 break;
-            case UNDEPLOYED:
-                processDeployment (deployment, HttpMethod.DELETE);
-                break;
             default:
                 return;
         }
+    }
+
+    @Override
+    public void onApplicationEvent(BeforeDeploymentUndeployedEvent inputEvent) {
+        Deployment deployment = deploymentService.get(inputEvent.getDeploymentId());
+        processDeployment (deployment, HttpMethod.DELETE);
     }
 
     private void processDeployment (Deployment deployment, HttpMethod method) {
