@@ -255,7 +255,7 @@ public class ApiGwPublisherModifier implements ApplicationListener<BeforeDeploym
                    int status = api.get("Status").intValue();
                    log.debug ("API: {}, status: {}", field, status);
                    if (status != 200) {
-                      log.warn("Status = {} for {} {}", status, method, field);
+                      log.error("Can not {} API for URL {} (Status = {})", method.equals(HttpMethod.POST)?"publish":"delete", field, status);
                    }
                 }
              }
