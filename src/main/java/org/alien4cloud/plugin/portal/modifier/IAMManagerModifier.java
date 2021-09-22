@@ -534,6 +534,27 @@ public class IAMManagerModifier extends TopologyModifierSupport {
        }
     }
 
+    private Role mapClientRole (Map props) {
+       Role result = new Role ((String)props.get("name"), (String)props.get("description"), null);
+       if (props.get("attributes") != null) {
+          List lAttribs = (List)props.get("attributes");
+          if (lAttribs.size() > 0) {
+             Map<String,List<String>> attribs = new HashMap<String,List<String>>();
+             for (Object oAttrib : lAttribs) {
+                Map<String,String> mAttrib = (Map<String,String>) oAttrib;
+                List<String> vals = new ArrayList<String>();
+                vals.add (mAttrib.get("value"));
+                attribs.put (mAttrib.get("name"),vals);
+             }
+             result.setAttributes(attribs);
+          }
+       }
+       try {
+          log.debug ("Client role to create: {}", mapper.writeValueAsString(result));
+       } catch (Exception e) {}
+       return result;
+    }
+
     /**
      * Update client roles
      **/
@@ -557,7 +578,7 @@ public class IAMManagerModifier extends TopologyModifierSupport {
           oRoles = ((ListPropertyValue)rolePV).getValue();
        }
        List<Role> newRoles = safe(oRoles).stream()
-                                   .map(object -> new Role((String)((Map)object).get("name"), (String)((Map)object).get("description"), null))
+                                   .map(object -> mapClientRole((Map)object))
                                    .collect(Collectors.toList());
 
        /* delete obsolete roles */
@@ -571,6 +592,7 @@ public class IAMManagerModifier extends TopologyModifierSupport {
           if (!existingRolesList.contains(role)) {
              createClientRole (token, role, clientId, zone);
           }
+          updateClientRole (token, role, clientId, zone);
        });
     }
 
@@ -605,7 +627,30 @@ public class IAMManagerModifier extends TopologyModifierSupport {
        String result = this.<Role, String>sendRequest (token, url, HttpMethod.POST, role, String.class, zone, true, error);
        if (error.length()!=0) {
           log.error ("Cannot create role {} for client {}", role.getName(), clientId);
+          return;
        }
+    }
+     
+    /**
+     * Update client role
+     **/
+    private void updateClientRole (Token token, Role role, String clientId, String zone) {
+       String baseUrl = portalConfiguration.getParameter (zone, "iamApiUrl");
+       String realm = portalConfiguration.getParameter (zone, "realm");
+
+       String url = baseUrl + "/auth/admin/realms/" + realm + "/clients/" + clientId + "/roles/";
+       if (role.getAttributes() != null) {
+          log.debug ("Updating client role {}", role.getName());
+          StringBuffer error = new StringBuffer();
+          url = url + role.getName();
+          String result = this.<Role, String>sendRequest (token, url, HttpMethod.PUT, role, String.class, zone, true, error);
+          if (error.length()==0) {
+             log.debug ("Client role {} updated", role.getName());
+          } else {
+             log.error ("Cannot update client role {}", role.getName());
+          }
+       }
+
     }
 
     /**

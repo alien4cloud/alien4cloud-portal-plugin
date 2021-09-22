@@ -240,6 +240,7 @@ public class PortalPublisherModifier extends TopologyModifierSupport {
            String description = PropertyUtil.getScalarValue(safe(endpoint.getProperties()).get("description"));
            String locationOptions = PropertyUtil.getScalarValue(safe(endpoint.getProperties()).get("locationOptions"));
            String ingressOptions = PropertyUtil.getScalarValue(safe(endpoint.getProperties()).get("ingressOptions"));
+           String serverOptions = PropertyUtil.getScalarValue(safe(endpoint.getProperties()).get("serverOptions"));
            String portletname = PropertyUtil.getScalarValue(safe(endpoint.getProperties()).get("portletname"));
            String cuContextPath = PropertyUtil.getScalarValue(safe(endpoint.getProperties()).get("cuContextPath"));
 
@@ -341,6 +342,9 @@ public class PortalPublisherModifier extends TopologyModifierSupport {
            }
            if (!StringUtils.isBlank(ingressOptions)) {
               setNodePropertyPathValue(null,topology,rpnode,"ingressOptions", new ScalarPropertyValue(ingressOptions));
+           }
+           if (!StringUtils.isBlank(serverOptions)) {
+              setNodePropertyPathValue(null,topology,rpnode,"serverOptions", new ScalarPropertyValue(serverOptions));
            }
            setNodePropertyPathValue(null,topology,rpnode,"iamRole", new ScalarPropertyValue(qualifiedName + "_casusage_role"));
 

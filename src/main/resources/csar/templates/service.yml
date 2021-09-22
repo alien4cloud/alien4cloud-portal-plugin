@@ -16,6 +16,7 @@ spec:
       protocol: TCP
       name: tcp-8002
       targetPort: 8002
+  sessionAffinity: ClientIP
   selector:
     app: rp-{{ uc_id }}
   type: ClusterIP

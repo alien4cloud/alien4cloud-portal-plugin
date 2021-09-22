@@ -5,6 +5,11 @@ metadata:
   name: rp-{{ uc_id }}-ingress
   namespace: {{ zoneNamespace }}
   annotations:
+    nginx.ingress.kubernetes.io/proxy-buffer-size: 8k
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"
+    nginx.ingress.kubernetes.io/affinity: cookie
+    nginx.ingress.kubernetes.io/session-cookie-name: ingresscookie
+    nginx.ingress.kubernetes.io/session-cookie-path: /
 {% if ingressClass is defined and ingressClass|length %}
     kubernetes.io/ingress.class: {{ ingressClass }}
 {% endif %} 

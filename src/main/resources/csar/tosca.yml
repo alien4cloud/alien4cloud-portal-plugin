@@ -164,6 +164,11 @@ node_types:
         description: |
           UD, options to add to ingress
         required: false
+      serverOptions:
+        type: string
+        description: |
+          UD, options to add to nginx/server block
+        required: false
     interfaces:
       Standard:
         create:
@@ -198,6 +203,7 @@ node_types:
             smdCacheEnable: { get_property: [SELF, smdCacheEnable] }
             smdCacheTTL: { get_property: [SELF, smdCacheTTL] }
             ingressOptions: { get_property: [SELF, ingressOptions] }
+            serverOptions: { get_property: [SELF, serverOptions] }
           implementation: playbook/create.yml
         delete:
           inputs:
@@ -339,6 +345,11 @@ capability_types:
         required: false
         description: |
           options to add to ingress
+      serverOptions:
+        type: string
+        required: false
+        description: |
+          options to add to nginx server block
       cuContextPath:
         type: boolean
         required: true
@@ -449,6 +460,16 @@ capability_types:
 
 data_types:
 
+   org.alien4cloud.portalplugin.datatypes.Attribute:
+      derived_from: tosca.datatypes.Root
+      properties:
+        name:
+          type: string   
+          description: attribute name
+        value:
+          type: string   
+          description: attribute value
+
    org.alien4cloud.portalplugin.datatypes.ClientRole:
       derived_from: tosca.datatypes.Root
       properties:
@@ -458,4 +479,11 @@ data_types:
         description:
           type: string   
           description: role description
+          required: false
+        attributes:
+          type: list
+          entry_schema:
+            type:  org.alien4cloud.portalplugin.datatypes.Attribute
+          description: |
+            role attributes
           required: false
