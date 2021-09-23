@@ -217,7 +217,7 @@ public class ApiGwPublisherModifier implements ApplicationListener<BeforeDeploym
            }
            String uri = PropertyUtil.getScalarValue(safe(endpoint.getProperties()).get("suburlspec"));
            ImportApiRequest req = new ImportApiRequest();
-           req.setUri(baseUrl + "/" + qualifiedName + "." + node.getName() + uri);
+           req.setUri(baseUrl + "/" + qualifiedName + "_" + node.getName().replaceAll("_","-") + uri);
            request.add(req);
         }
         if (!request.isEmpty()) {

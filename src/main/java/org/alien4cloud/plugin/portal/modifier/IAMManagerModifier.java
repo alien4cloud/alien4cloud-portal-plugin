@@ -356,13 +356,14 @@ public class IAMManagerModifier extends TopologyModifierSupport {
               log.info ("Tab name not set for {}, using 'cas-usage'", node.getName());
               tabname = "cas-usage";
            }
+           qualifiedName += "_IHM";
         } else {
            endpoint.getProperties().put("url_path", new ScalarPropertyValue("/" + qualifiedName + "." + node.getName()));
-           qualifiedName += "-" + node.getName();
+           qualifiedName += "_" + node.getName().replaceAll("_","-");
         }
 
         if (!createRole (qualifiedName, tabname, zone)) {
-           context.log().warn("Can not create role {}_casusage_role", qualifiedName);
+           context.log().warn("Can not create role {}", qualifiedName);
         }
      }
     /**
@@ -389,7 +390,7 @@ public class IAMManagerModifier extends TopologyModifierSupport {
     private boolean existRole (Token token, String name, String zone) {
        String baseUrl = portalConfiguration.getParameter (zone, "iamApiUrl");
        String realm = portalConfiguration.getParameter (zone, "realm");
-       String url = baseUrl + "/auth/admin/realms/" + realm + "/roles/" + name + "_casusage_role";
+       String url = baseUrl + "/auth/admin/realms/" + realm + "/roles/" + name;
 
        StringBuffer error = new StringBuffer();
        Role result = this.<Object, Role>sendRequest (token, url, HttpMethod.GET, null, Role.class, zone, true, error);
@@ -409,7 +410,6 @@ public class IAMManagerModifier extends TopologyModifierSupport {
        String baseUrl = portalConfiguration.getParameter (zone, "iamApiUrl");
        String realm = portalConfiguration.getParameter (zone, "realm");
        String url = baseUrl + "/auth/admin/realms/" + realm + "/roles";
-       name = name + "_casusage_role";
 
        Role role = new Role();
        role.setName(name);
