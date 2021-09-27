@@ -358,8 +358,8 @@ public class IAMManagerModifier extends TopologyModifierSupport {
            }
            qualifiedName += "_IHM";
         } else {
-           endpoint.getProperties().put("url_path", new ScalarPropertyValue("/" + qualifiedName + "." + node.getName()));
            qualifiedName += "_" + node.getName().replaceAll("_","-");
+           endpoint.getProperties().put("url_path", new ScalarPropertyValue("/" + qualifiedName));
         }
 
         if (!createRole (qualifiedName, tabname, zone)) {
