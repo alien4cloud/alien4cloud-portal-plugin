@@ -346,7 +346,7 @@ public class PortalPublisherModifier extends TopologyModifierSupport {
            if (!StringUtils.isBlank(serverOptions)) {
               setNodePropertyPathValue(null,topology,rpnode,"serverOptions", new ScalarPropertyValue(serverOptions));
            }
-           setNodePropertyPathValue(null,topology,rpnode,"iamRole", new ScalarPropertyValue(qualifiedName + "_casusage_role"));
+           setNodePropertyPathValue(null,topology,rpnode,"iamRole", new ScalarPropertyValue(qualifiedName + "_IHM"));
 
            boolean bCuContextPath = Boolean.valueOf(cuContextPath);
            if (bCuContextPath) {
