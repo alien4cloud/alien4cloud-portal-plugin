@@ -21,6 +21,7 @@ spec:
         expose-ingress: "true"
         access-iam: "true"
         is-portail-rproxy: "true"
+        access-ext-smd: "true"
     spec:
       # Add Security Context for running container with artemis user instead of root user.
       # The artemis user (uid 500) is defined into the image.
