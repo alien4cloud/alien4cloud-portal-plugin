@@ -45,24 +45,31 @@
 
     - name: Remove RM Ingress
       shell: "kubectl --kubeconfig {{ kubeconfig_file.path }} -n {{ zoneNamespace }} delete ingress rp-{{ uc_id }}-ingress"
+      ignore_errors: yes
 
     - name: Remove RM Service
       shell: "kubectl --kubeconfig {{ kubeconfig_file.path }} -n {{ zoneNamespace }} delete service rp-{{ uc_id }}-svc"
+      ignore_errors: yes
 
     - name: Remove RM Deployment
       shell: "kubectl --kubeconfig {{ kubeconfig_file.path }} -n {{ zoneNamespace }} delete deployment rp-{{ uc_id }}"
+      ignore_errors: yes
 
     - name: Delete nginx configMap
       shell: "kubectl --kubeconfig {{ kubeconfig_file.path }} -n {{ zoneNamespace }} delete configmap rp-{{ uc_id }}-nginx-cm"
+      ignore_errors: yes
 
     - name: Delete settings configMap
       shell: "kubectl --kubeconfig {{ kubeconfig_file.path }} -n {{ zoneNamespace }} delete configmap rp-{{ uc_id }}-settings-cm"
+      ignore_errors: yes
 
     - name: Delete site configMap
       shell: "kubectl --kubeconfig {{ kubeconfig_file.path }} -n {{ zoneNamespace }} delete configmap rp-{{ uc_id }}-site-cm"
+      ignore_errors: yes
 
     - name: Delete app configMap
       shell: "kubectl --kubeconfig {{ kubeconfig_file.path }} -n {{ zoneNamespace }} delete configmap rp-{{ uc_id }}-app-cm"
+      ignore_errors: yes
 
     - name: Finally remove kubeconfig temporary file
       file:
