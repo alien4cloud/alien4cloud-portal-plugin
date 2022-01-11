@@ -246,6 +246,16 @@ public class PortalPublisherModifier extends TopologyModifierSupport {
 
            String url = portalConfiguration.getParameter (zone, "proxyBaseUrl") + url_path;
 
+           if (StringUtils.isNotBlank(locationOptions))  {
+              locationOptions = locationOptions.replaceAll("<zone>", zone);
+           }
+           if (StringUtils.isNotBlank(ingressOptions))  {
+              ingressOptions = ingressOptions.replaceAll("<zone>", zone);
+           }
+           if (StringUtils.isNotBlank(serverOptions))  {
+              serverOptions = serverOptions.replaceAll("<zone>", zone);
+           }
+
            /* --- Consul --- */
 
            /* add a node (to final topology) which will publish info to consul */
