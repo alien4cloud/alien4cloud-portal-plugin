@@ -86,6 +86,15 @@ public class PortalPublisherModifier extends TopologyModifierSupport {
                                        "smdCacheEnable", "smdCacheTTL",
                                        "proxyHostExternal","portalExternalUrl").collect(Collectors.toList());
 
+    /* parameters which can be replaced in *options */
+    private List<String> replParams = Stream.of ("iamApiUrl", "iamBaseUrl", "iamConfigUrl",
+                                       "iamExternalUrl", "iamLogoutUrl", "ingressClass", 
+                                       "portalBaseUrl", "portalClient", "portalExternalUrl",
+                                       "proxyBaseUrl", "proxyHostBase", "proxyHost", "proxyHostExternal", 
+                                       "realm", "zoneNamespace", "importApiUrl", "openidUri"
+                                       ).collect(Collectors.toList());
+    
+
     /* portal secrets per zone */
     private Map<String,String> portalSecrets = new HashMap<String,String>();
 
@@ -247,13 +256,13 @@ public class PortalPublisherModifier extends TopologyModifierSupport {
            String url = portalConfiguration.getParameter (zone, "proxyBaseUrl") + url_path;
 
            if (StringUtils.isNotBlank(locationOptions))  {
-              locationOptions = locationOptions.replaceAll("<zone>", zone);
+              locationOptions = replaceParms (locationOptions, zone);
            }
            if (StringUtils.isNotBlank(ingressOptions))  {
-              ingressOptions = ingressOptions.replaceAll("<zone>", zone);
+              ingressOptions = replaceParms (ingressOptions, zone);
            }
            if (StringUtils.isNotBlank(serverOptions))  {
-              serverOptions = serverOptions.replaceAll("<zone>", zone);
+              serverOptions = replaceParms (serverOptions, zone);
            }
 
            /* --- Consul --- */
@@ -411,5 +420,14 @@ public class PortalPublisherModifier extends TopologyModifierSupport {
         private String upstreamUrl;
         private String zone;
         private String[] tags;
+    }
+
+    private String replaceParms (String value, String zone) {
+       String result = value.replaceAll ("<zone>", zone);
+       for (String parm : replParams) {
+          result = result.replaceAll ("<" + parm + ">",
+                portalConfiguration.getParameter (zone, parm));
+       }
+       return result;
     }
 }
