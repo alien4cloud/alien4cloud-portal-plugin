@@ -70,6 +70,7 @@ import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_T
 import org.alien4cloud.plugin.portal.configuration.PortalPortalConfiguration;
 import org.alien4cloud.plugin.portal.model.*;
 import static org.alien4cloud.plugin.portal.PortalConstants.API_SERVICE;
+import static org.alien4cloud.plugin.portal.PortalConstants.IAM_APIACCESS_TYPE;
 import static org.alien4cloud.plugin.portal.PortalConstants.IAM_RELATION;
 import static org.alien4cloud.plugin.portal.PortalConstants.IAM_TYPE;
 import static org.alien4cloud.plugin.portal.PortalConstants.PROXIED_SERVICE;
@@ -291,6 +292,23 @@ public class IAMManagerModifier extends TopologyModifierSupport {
            }
 
            endpoint.getProperties().put("clientSecret", new ScalarPropertyValue(clientSecret));
+        }
+
+        /* manage IAM API Accesses */
+        String user = portalConfiguration.getParameter(zone, "iamApiUser");
+        String password = portalConfiguration.getParameter(zone, "iamApiPassword");
+        if (!StringUtils.isBlank(user) && !StringUtils.isBlank(password)) {
+           for (NodeTemplate node : TopologyNavigationUtil.getNodesOfType(topology, IAM_APIACCESS_TYPE, true)) {
+
+              Capability endpoint = safe(node.getCapabilities()).get("iam_endpoint");
+              if (endpoint == null) {
+                 log.warn ("No iam_endpoint for {}, skip it", node.getName());
+                 continue;
+              }
+
+              endpoint.getProperties().put("username", new ScalarPropertyValue(user));
+              endpoint.getProperties().put("password", new ScalarPropertyValue(password));
+           }
         }
     }
 

@@ -15,4 +15,6 @@ public class PortalConstants {
     public static final String IAM_RELATION= "org.alien4cloud.portalplugin.capabilities.IAMEndpoint";
 
     public static final String API_SERVICE = "org.alien4cloud.portalplugin.types.KubeApiService";
+
+    public static final String IAM_APIACCESS_TYPE = "artemis.iamapiaccess.pub.nodes.IAMAPIAccess";
 }
