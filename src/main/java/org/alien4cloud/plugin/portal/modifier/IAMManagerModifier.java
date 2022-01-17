@@ -308,6 +308,15 @@ public class IAMManagerModifier extends TopologyModifierSupport {
 
               endpoint.getProperties().put("username", new ScalarPropertyValue(user));
               endpoint.getProperties().put("password", new ScalarPropertyValue(password));
+
+              String clientId = portalConfiguration.getParameter(zone, "iamApiClientId");
+              if (!StringUtils.isBlank(clientId)) {
+                 endpoint.getProperties().put("clientId", new ScalarPropertyValue(clientId));
+              }
+              String clientSecret = portalConfiguration.getParameter(zone, "iamApiClientSecret");
+              if (!StringUtils.isBlank(clientSecret)) {
+                 endpoint.getProperties().put("clientSecret", new ScalarPropertyValue(clientSecret));
+              }
            }
         }
     }
