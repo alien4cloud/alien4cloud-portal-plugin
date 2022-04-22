@@ -3,10 +3,10 @@
   <parent>
     <groupId>alien4cloud</groupId>
     <artifactId>alien4cloud-parent</artifactId>
-    <version>3.6.0</version>
+    <version>3.7.0-SNAPSHOT</version>
   </parent>
   <artifactId>alien4cloud-portal-plugin</artifactId>
-  <version>3.6.0</version>
+  <version>3.7.0-SNAPSHOT</version>
   <name>Alien 4 Cloud Portal Plugin</name>
   <description>This plugin is used to reconcile A4C and portal</description>
 
